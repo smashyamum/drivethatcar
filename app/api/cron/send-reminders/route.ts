@@ -4,7 +4,6 @@ import { sendReminderEmail } from "@/lib/email/booking-emails";
 import type { Booking } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
 
 /**
  * Hourly cron — sends a reminder email for every confirmed booking starting
