@@ -46,14 +46,88 @@ export type CarPhoto = {
   created_at: string;
 };
 
+export type LeadStatus =
+  | "new"
+  | "contacted"
+  | "warm"
+  | "hot"
+  | "test_driven"
+  | "negotiating"
+  | "sold"
+  | "lost"
+  | "cold";
+
+export const LEAD_STATUSES: LeadStatus[] = [
+  "new",
+  "contacted",
+  "warm",
+  "hot",
+  "test_driven",
+  "negotiating",
+  "sold",
+  "lost",
+  "cold",
+];
+
+export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
+  new: "New",
+  contacted: "Contacted",
+  warm: "Warm",
+  hot: "Hot",
+  test_driven: "Test driven",
+  negotiating: "Negotiating",
+  sold: "Sold",
+  lost: "Lost",
+  cold: "Cold",
+};
+
+export const LEAD_STATUS_TONE: Record<
+  LeadStatus,
+  "success" | "warning" | "danger" | "neutral"
+> = {
+  new: "neutral",
+  contacted: "neutral",
+  warm: "warning",
+  hot: "danger",
+  test_driven: "warning",
+  negotiating: "warning",
+  sold: "success",
+  lost: "neutral",
+  cold: "neutral",
+};
+
 export type Customer = {
   id: string;
   name: string;
   phone: string;
   email: string;
-  notes: string | null;
+  lead_status: LeadStatus;
+  lead_source: string | null;
+  next_follow_up_at: string | null;
+  interested_car_id: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type CustomerActivityKind =
+  | "note"
+  | "call"
+  | "whatsapp_sent"
+  | "email_sent"
+  | "sms_sent"
+  | "meeting"
+  | "status_change"
+  | "follow_up_set"
+  | "lead_created";
+
+export type CustomerActivity = {
+  id: string;
+  customer_id: string;
+  kind: CustomerActivityKind;
+  body: string | null;
+  metadata: Record<string, unknown> | null;
+  created_by: string | null;
+  created_at: string;
 };
 
 export type BookingType = "viewing" | "test_drive";

@@ -26,11 +26,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <Link href="/admin/bookings" className="hover:text-fg">
                 Bookings
               </Link>
-              <Link
-                href="/admin/customers"
-                className="cursor-not-allowed opacity-50"
-                aria-disabled
-              >
+              <Link href="/admin/customers" className="hover:text-fg">
                 Customers
               </Link>
               <Link href="/admin/settings" className="hover:text-fg">
