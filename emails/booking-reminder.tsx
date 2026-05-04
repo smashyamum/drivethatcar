@@ -21,6 +21,8 @@ export type BookingReminderProps = {
   cancelUrl: string;
   businessName: string;
   contactPhone: string | null;
+  previewLabel?: string;
+  headingLabel?: string;
 };
 
 export default function BookingReminder({
@@ -33,11 +35,13 @@ export default function BookingReminder({
   cancelUrl,
   businessName,
   contactPhone,
+  previewLabel = "Tomorrow",
+  headingLabel = "See you tomorrow",
 }: BookingReminderProps) {
   return (
     <Html>
       <Head />
-      <Preview>{`Tomorrow: ${typeLabel.toLowerCase()} of the ${carHeadline} at ${whenLabel}`}</Preview>
+      <Preview>{`${previewLabel}: ${typeLabel.toLowerCase()} of the ${carHeadline} at ${whenLabel}`}</Preview>
       <Tailwind>
         <Body className="bg-[#f8f9fa] font-sans text-[#374151]">
           <Container className="mx-auto my-10 max-w-[560px] rounded-[12px] border border-[#e5e7eb] bg-white p-10">
@@ -45,11 +49,11 @@ export default function BookingReminder({
               Reminder
             </Text>
             <Text className="m-0 mb-2 text-[28px] font-semibold tracking-tight text-[#111111]">
-              See you tomorrow
+              {headingLabel}
             </Text>
             <Text className="m-0 mb-8 text-base text-[#6b7280]">
               Hi {customerName.split(" ")[0]}, just a quick reminder about your
-              {` ${typeLabel.toLowerCase()}`} tomorrow.
+              {` ${typeLabel.toLowerCase()}`}.
             </Text>
 
             <Section className="rounded-[12px] border border-[#e5e7eb] bg-[#f8f9fa] p-5">

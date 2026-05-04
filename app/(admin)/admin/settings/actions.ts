@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { WEEKDAYS } from "@/lib/supabase/types";
+import { REMINDER_OFFSET_PRESETS, WEEKDAYS } from "@/lib/supabase/types";
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -30,6 +30,7 @@ const SettingsSchema = z.object({
   buffer_minutes: z.coerce.number().int().min(0).max(480),
   resend_from_email: z.union([z.string().email(), z.literal("")]).nullable(),
   working_hours: WorkingHoursSchema,
+  reminder_offsets_hours: z.array(z.number().int().positive().max(720)).max(6),
 });
 
 export type SettingsState = { error?: string; ok?: boolean };
@@ -54,6 +55,10 @@ export async function saveSettings(
     workingHours[day] = open ? [{ start, end }] : [];
   }
 
+  const reminderOffsets = REMINDER_OFFSET_PRESETS.map((p) => p.hours)
+    .filter((h) => formData.get(`reminder_${h}`) === "on")
+    .sort((a, b) => b - a);
+
   const parsed = SettingsSchema.safeParse({
     business_name: (formData.get("business_name") as string)?.trim() || null,
     contact_email: (formData.get("contact_email") as string)?.trim() || null,
@@ -63,6 +68,7 @@ export async function saveSettings(
     buffer_minutes: formData.get("buffer_minutes"),
     resend_from_email: (formData.get("resend_from_email") as string)?.trim() || null,
     working_hours: workingHours,
+    reminder_offsets_hours: reminderOffsets,
   });
 
   if (!parsed.success) {

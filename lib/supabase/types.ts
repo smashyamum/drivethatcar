@@ -71,7 +71,7 @@ export type Booking = {
   manage_token_hash: string;
   manage_token: string | null;
   google_event_id: string | null;
-  reminder_sent_at: string | null;
+  reminder_offsets_sent: number[];
   cancelled_at: string | null;
   cancelled_by: "customer" | "admin" | "system" | null;
   created_at: string;
@@ -101,8 +101,16 @@ export type Settings = {
   working_hours: WorkingHours;
   google_calendar_id: string | null;
   resend_from_email: string | null;
+  reminder_offsets_hours: number[];
   updated_at: string;
 };
+
+export const REMINDER_OFFSET_PRESETS: Array<{ hours: number; label: string }> = [
+  { hours: 168, label: "1 week before" },
+  { hours: 72, label: "3 days before" },
+  { hours: 48, label: "2 days before" },
+  { hours: 24, label: "1 day before" },
+];
 
 export const WEEKDAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 export const WEEKDAY_LABELS: Record<Weekday, string> = {

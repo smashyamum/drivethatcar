@@ -6,7 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { WEEKDAYS, WEEKDAY_LABELS, type Settings } from "@/lib/supabase/types";
+import {
+  REMINDER_OFFSET_PRESETS,
+  WEEKDAYS,
+  WEEKDAY_LABELS,
+  type Settings,
+} from "@/lib/supabase/types";
 import { saveSettings, type SettingsState } from "@/app/(admin)/admin/settings/actions";
 
 function SaveButton() {
@@ -72,6 +77,35 @@ export function SettingsForm({ initial }: { initial: Settings }) {
             placeholder="bookings@yourdomain.com"
           />
         </Field>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Reminders</h2>
+          <p className="text-sm text-fg-muted">
+            When to email customers before their booking. Sent during the daily 08:00 UTC check, so
+            actual delivery happens within 24 hours of each chosen time.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2">
+          {REMINDER_OFFSET_PRESETS.map((preset) => {
+            const checked = (initial.reminder_offsets_hours ?? [24]).includes(preset.hours);
+            return (
+              <label
+                key={preset.hours}
+                className="flex cursor-pointer items-center gap-3 rounded-md border border-border px-3 py-2 text-sm hover:bg-bg-subtle"
+              >
+                <input
+                  type="checkbox"
+                  name={`reminder_${preset.hours}`}
+                  defaultChecked={checked}
+                  className="h-4 w-4 rounded border-border-strong"
+                />
+                <span>{preset.label}</span>
+              </label>
+            );
+          })}
+        </div>
       </section>
 
       <section className="flex flex-col gap-4">

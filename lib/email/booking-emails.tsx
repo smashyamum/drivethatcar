@@ -147,7 +147,24 @@ export async function sendCancellationEmail(bookingId: string) {
   });
 }
 
-export async function sendReminderEmail(bookingId: string, manageToken: string) {
+function offsetLabel(offsetHours: number): { subject: string; preview: string; heading: string } {
+  if (offsetHours <= 24) {
+    return { subject: "tomorrow", preview: "Tomorrow", heading: "See you tomorrow" };
+  }
+  const days = Math.round(offsetHours / 24);
+  if (days >= 7) return { subject: "next week", preview: "Next week", heading: "See you next week" };
+  return {
+    subject: `in ${days} days`,
+    preview: `In ${days} days`,
+    heading: `See you in ${days} days`,
+  };
+}
+
+export async function sendReminderEmail(
+  bookingId: string,
+  manageToken: string,
+  offsetHours = 24,
+) {
   const ctx = await loadContext(bookingId, manageToken);
   if (!ctx) return;
   const { booking, car, customer, settings } = ctx;
@@ -157,11 +174,12 @@ export async function sendReminderEmail(bookingId: string, manageToken: string) 
   const businessName = settings.business_name ?? "Car Booking";
   const manageUrl = `${siteUrl()}/booking/${booking.id}?token=${manageToken}`;
   const cancelUrl = `${siteUrl()}/booking/${booking.id}/cancel?token=${manageToken}`;
+  const { subject, preview, heading } = offsetLabel(offsetHours);
 
   await sendBookingEmail({
     to: customer.email,
     from: senderFor(settings, businessName),
-    subject: `Reminder — ${headline} tomorrow at ${whenLabel}`,
+    subject: `Reminder — ${headline} ${subject} at ${whenLabel}`,
     template: "reminder",
     bookingId: booking.id,
     react: BookingReminder({
@@ -174,6 +192,8 @@ export async function sendReminderEmail(bookingId: string, manageToken: string) 
       cancelUrl,
       businessName,
       contactPhone: settings.contact_phone,
+      previewLabel: preview,
+      headingLabel: heading,
     }),
   });
 }

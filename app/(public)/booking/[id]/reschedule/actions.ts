@@ -93,7 +93,7 @@ export async function rescheduleBooking(
 
   const { error: updateError } = await service
     .from("bookings")
-    .update({ start_at: newStart.toISOString(), end_at: newEnd, reminder_sent_at: null })
+    .update({ start_at: newStart.toISOString(), end_at: newEnd, reminder_offsets_sent: [] })
     .eq("id", booking.id);
 
   if (updateError) {
