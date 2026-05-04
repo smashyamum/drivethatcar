@@ -1,6 +1,7 @@
 import "server-only";
 import BookingConfirmation from "@/emails/booking-confirmation";
 import BookingCancellation from "@/emails/booking-cancellation";
+import BookingReminder from "@/emails/booking-reminder";
 import BookingReschedule from "@/emails/booking-reschedule";
 import { buildIcs } from "@/lib/ics";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
@@ -142,6 +143,37 @@ export async function sendCancellationEmail(bookingId: string) {
       reference: booking.reference,
       rebookUrl: `${siteUrl()}/cars`,
       businessName,
+    }),
+  });
+}
+
+export async function sendReminderEmail(bookingId: string, manageToken: string) {
+  const ctx = await loadContext(bookingId, manageToken);
+  if (!ctx) return;
+  const { booking, car, customer, settings } = ctx;
+
+  const whenLabel = formatDateTimeInTz(new Date(booking.start_at), settings.timezone);
+  const headline = carHeadline(car);
+  const businessName = settings.business_name ?? "Car Booking";
+  const manageUrl = `${siteUrl()}/booking/${booking.id}?token=${manageToken}`;
+  const cancelUrl = `${siteUrl()}/booking/${booking.id}/cancel?token=${manageToken}`;
+
+  await sendBookingEmail({
+    to: customer.email,
+    from: senderFor(settings, businessName),
+    subject: `Reminder — ${headline} tomorrow at ${whenLabel}`,
+    template: "reminder",
+    bookingId: booking.id,
+    react: BookingReminder({
+      customerName: customer.name,
+      carHeadline: headline,
+      whenLabel,
+      typeLabel: TYPE_LABEL[booking.type],
+      reference: booking.reference,
+      manageUrl,
+      cancelUrl,
+      businessName,
+      contactPhone: settings.contact_phone,
     }),
   });
 }

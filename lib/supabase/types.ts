@@ -69,6 +69,7 @@ export type Booking = {
   end_at: string;
   status: BookingStatus;
   manage_token_hash: string;
+  manage_token: string | null;
   google_event_id: string | null;
   reminder_sent_at: string | null;
   cancelled_at: string | null;

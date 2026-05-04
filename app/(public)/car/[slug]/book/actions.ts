@@ -146,6 +146,7 @@ export async function createBooking(
       end_at: endAt,
       status: "confirmed",
       manage_token_hash: hash,
+      manage_token: token,
     })
     .select("id")
     .single();
