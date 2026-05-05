@@ -76,18 +76,25 @@ export async function deleteLead(id: string) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { count } = await supabase
+  const { count: bookingCount } = await supabase
     .from("bookings")
     .select("id", { count: "exact", head: true })
     .eq("customer_id", id);
 
-  if ((count ?? 0) > 0) {
+  if ((bookingCount ?? 0) > 0) {
     redirect(`/admin/customers/${id}?error=has_bookings`);
   }
 
-  const { error } = await supabase.from("customers").delete().eq("id", id);
+  const { error, count } = await supabase
+    .from("customers")
+    .delete({ count: "exact" })
+    .eq("id", id);
+
   if (error) {
     redirect(`/admin/customers/${id}?error=${encodeURIComponent(error.message)}`);
+  }
+  if ((count ?? 0) === 0) {
+    redirect(`/admin/customers/${id}?error=no_rows_affected`);
   }
 
   revalidatePath("/admin/customers");

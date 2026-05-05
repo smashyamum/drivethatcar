@@ -175,22 +175,29 @@ export async function deleteCar(id: string) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Defense in depth — page also gates the button on this count.
-  const { count } = await supabase
+  const { count: bookingCount } = await supabase
     .from("bookings")
     .select("id", { count: "exact", head: true })
     .eq("car_id", id);
 
-  if ((count ?? 0) > 0) {
+  if ((bookingCount ?? 0) > 0) {
     redirect(`/admin/cars/${id}?error=has_bookings`);
   }
 
-  const { error } = await supabase.from("cars").delete().eq("id", id);
+  const { error, count } = await supabase
+    .from("cars")
+    .delete({ count: "exact" })
+    .eq("id", id);
+
   if (error) {
     redirect(`/admin/cars/${id}?error=${encodeURIComponent(error.message)}`);
+  }
+  if ((count ?? 0) === 0) {
+    // No row matched — either gone already or RLS blocked it silently.
+    redirect(`/admin/cars/${id}?error=no_rows_affected`);
   }
 
   revalidatePath("/admin/cars");
   revalidatePath("/cars");
-  redirect("/admin/cars");
+  redirect("/admin/cars?deleted=1");
 }

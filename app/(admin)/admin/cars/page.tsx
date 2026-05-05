@@ -13,7 +13,12 @@ const STATUS_TONE: Record<CarStatus, "success" | "warning" | "neutral"> = {
   hidden: "neutral",
 };
 
-export default async function AdminCarsPage() {
+export default async function AdminCarsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ deleted?: string }>;
+}) {
+  const { deleted } = await searchParams;
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("cars")
@@ -33,6 +38,12 @@ export default async function AdminCarsPage() {
           <Button>Add car</Button>
         </Link>
       </div>
+
+      {deleted && (
+        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          Car deleted.
+        </p>
+      )}
 
       {error && (
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
