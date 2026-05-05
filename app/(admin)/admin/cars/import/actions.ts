@@ -9,6 +9,89 @@ import { parseCsv } from "@/lib/csv";
 const optional = (v: unknown) =>
   typeof v === "string" && v.trim().length > 0 ? v.trim() : null;
 
+// Lowercase, trim, collapse internal whitespace, replace dashes with underscores.
+function normalise(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  return String(v)
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+}
+
+const TRANSMISSION_ALIASES: Record<string, "manual" | "automatic" | "semi_auto"> = {
+  manual: "manual",
+  stick: "manual",
+  automatic: "automatic",
+  auto: "automatic",
+  cvt: "automatic",
+  dsg: "automatic",
+  tiptronic: "automatic",
+  semi_auto: "semi_auto",
+  semi_automatic: "semi_auto",
+  semiauto: "semi_auto",
+  dct: "semi_auto",
+};
+
+const FUEL_ALIASES: Record<string, "petrol" | "diesel" | "hybrid" | "phev" | "electric"> = {
+  petrol: "petrol",
+  gas: "petrol",
+  gasoline: "petrol",
+  diesel: "diesel",
+  hybrid: "hybrid",
+  phev: "phev",
+  plug_in_hybrid: "phev",
+  plugin_hybrid: "phev",
+  electric: "electric",
+  ev: "electric",
+};
+
+const BODY_ALIASES: Record<
+  string,
+  "hatchback" | "saloon" | "estate" | "suv" | "coupe" | "convertible" | "mpv" | "pickup"
+> = {
+  hatchback: "hatchback",
+  hatch: "hatchback",
+  saloon: "saloon",
+  sedan: "saloon",
+  estate: "estate",
+  wagon: "estate",
+  station_wagon: "estate",
+  suv: "suv",
+  crossover: "suv",
+  coupe: "coupe",
+  convertible: "convertible",
+  cabriolet: "convertible",
+  cabrio: "convertible",
+  roadster: "convertible",
+  mpv: "mpv",
+  minivan: "mpv",
+  van: "mpv",
+  pickup: "pickup",
+  truck: "pickup",
+  ute: "pickup",
+};
+
+const STATUS_ALIASES: Record<string, "available" | "sold" | "hidden"> = {
+  available: "available",
+  active: "available",
+  in_stock: "available",
+  instock: "available",
+  for_sale: "available",
+  sold: "sold",
+  hidden: "hidden",
+  draft: "hidden",
+  archived: "hidden",
+};
+
+function aliasEnum<T extends string>(table: Record<string, T>, valid: readonly T[]) {
+  return z.preprocess((v) => {
+    if (v === null || v === undefined) return undefined;
+    const k = normalise(v);
+    if (k === "") return undefined;
+    return table[k] ?? v; // unknown values pass through and the enum rejects
+  }, z.enum(valid as unknown as [T, ...T[]]).nullable().optional());
+}
+
 const RowSchema = z.object({
   make: z.string().trim().min(1, "make is required"),
   model: z.string().trim().min(1, "model is required"),
@@ -24,32 +107,35 @@ const RowSchema = z.object({
       return Number.isFinite(n) ? n : null;
     })
     .pipe(z.number().int().nonnegative().nullable()),
-  price: z.coerce.number().nonnegative(),
+  price: z
+    .union([z.string(), z.number()])
+    .transform((v) => {
+      const s = String(v).trim().replace(/[, ]/g, "");
+      const n = Number(s);
+      return Number.isFinite(n) ? n : NaN;
+    })
+    .pipe(z.number().nonnegative()),
   colour: z.string().trim().nullable().optional(),
-  transmission: z
-    .enum(["manual", "automatic", "semi_auto"])
-    .nullable()
-    .optional(),
-  fuel_type: z
-    .enum(["petrol", "diesel", "hybrid", "phev", "electric"])
-    .nullable()
-    .optional(),
-  body_type: z
-    .enum([
-      "hatchback",
-      "saloon",
-      "estate",
-      "suv",
-      "coupe",
-      "convertible",
-      "mpv",
-      "pickup",
-    ])
-    .nullable()
-    .optional(),
+  transmission: aliasEnum(TRANSMISSION_ALIASES, ["manual", "automatic", "semi_auto"]),
+  fuel_type: aliasEnum(FUEL_ALIASES, ["petrol", "diesel", "hybrid", "phev", "electric"]),
+  body_type: aliasEnum(BODY_ALIASES, [
+    "hatchback",
+    "saloon",
+    "estate",
+    "suv",
+    "coupe",
+    "convertible",
+    "mpv",
+    "pickup",
+  ]),
   registration: z.string().trim().nullable().optional(),
   description: z.string().trim().nullable().optional(),
-  status: z.enum(["available", "sold", "hidden"]).default("available"),
+  status: z.preprocess((v) => {
+    if (v === null || v === undefined) return "available";
+    const k = normalise(v);
+    if (k === "") return "available";
+    return STATUS_ALIASES[k] ?? v;
+  }, z.enum(["available", "sold", "hidden"]).default("available")),
 });
 
 export type ImportState = {
@@ -75,6 +161,45 @@ const KNOWN_HEADERS = [
   "status",
 ] as const;
 
+const HEADER_ALIASES: Record<string, (typeof KNOWN_HEADERS)[number]> = {
+  manufacturer: "make",
+  brand: "make",
+  trim: "variant",
+  spec: "variant",
+  km: "mileage",
+  kms: "mileage",
+  kilometres: "mileage",
+  kilometers: "mileage",
+  odometer: "mileage",
+  price_aed: "price",
+  price_dh: "price",
+  price_dhs: "price",
+  price_dirham: "price",
+  price_dirhams: "price",
+  cost: "price",
+  color: "colour",
+  gearbox: "transmission",
+  fuel: "fuel_type",
+  body: "body_type",
+  reg: "registration",
+  plate: "registration",
+  number_plate: "registration",
+  notes: "description",
+  details: "description",
+  state: "status",
+};
+
+function normaliseHeader(raw: string): string {
+  const cleaned = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  if ((KNOWN_HEADERS as readonly string[]).includes(cleaned)) return cleaned;
+  if (HEADER_ALIASES[cleaned]) return HEADER_ALIASES[cleaned];
+  return cleaned;
+}
+
 export async function importCars(
   _prev: ImportState,
   formData: FormData,
@@ -99,7 +224,7 @@ export async function importCars(
     return { error: "CSV needs a header row plus at least one car." };
   }
 
-  const headers = rows[0].map((h) => h.trim().toLowerCase());
+  const headers = rows[0].map((h) => normaliseHeader(h));
   const missing = REQUIRED_HEADERS.filter((h) => !headers.includes(h));
   if (missing.length > 0) {
     return { error: `Missing required column${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}` };

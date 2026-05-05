@@ -41,6 +41,13 @@ export default function ImportCarsPage() {
           <code className="font-mono text-[12px]">status</code> (available / sold /
           hidden — defaults to available).
         </p>
+        <p className="mt-2 text-sm text-fg-muted">
+          Case and spacing don&rsquo;t matter — &ldquo;Automatic&rdquo;,{" "}
+          &ldquo;AUTO&rdquo;, &ldquo;Sedan&rdquo;, &ldquo;Petrol&rdquo;,{" "}
+          &ldquo;EV&rdquo;, &ldquo;SUV&rdquo;, etc. all work. Header names like{" "}
+          &ldquo;Body Type&rdquo;, &ldquo;Fuel Type&rdquo;, &ldquo;Price (AED)&rdquo;,{" "}
+          &ldquo;Color&rdquo;, &ldquo;Brand&rdquo;, &ldquo;KMs&rdquo; are accepted too.
+        </p>
         <p className="mt-3 text-sm">
           <a
             href="/admin/cars/import/template"
