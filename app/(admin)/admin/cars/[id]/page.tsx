@@ -100,11 +100,9 @@ export default async function EditCarPage({
             </>
           )}
         </p>
-        {(bookingCount ?? 0) === 0 && (
-          <div className="mt-4">
-            <DeleteCarForm action={deleteAction} carHeadline={carHeadline} />
-          </div>
-        )}
+        <div className="mt-4">
+          <DeleteCarForm action={deleteAction} carHeadline={carHeadline} />
+        </div>
       </div>
     </div>
   );

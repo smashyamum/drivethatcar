@@ -320,14 +320,12 @@ export default async function AdminCustomerDetailPage({
             </>
           )}
         </p>
-        {bookings.length === 0 && (
-          <div className="mt-4">
-            <DeleteLeadForm
-              action={deleteLead.bind(null, customer.id)}
-              customerName={customer.name}
-            />
-          </div>
-        )}
+        <div className="mt-4">
+          <DeleteLeadForm
+            action={deleteLead.bind(null, customer.id)}
+            customerName={customer.name}
+          />
+        </div>
       </div>
     </div>
   );

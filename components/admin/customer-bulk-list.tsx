@@ -35,12 +35,8 @@ export function CustomerBulkList({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const now = useMemo(() => new Date(nowIso), [nowIso]);
 
-  const allSelectableIds = useMemo(
-    () => customers.filter((c) => c.bookingCount === 0).map((c) => c.id),
-    [customers],
-  );
-  const allSelected =
-    allSelectableIds.length > 0 && allSelectableIds.every((id) => selected.has(id));
+  const allIds = useMemo(() => customers.map((c) => c.id), [customers]);
+  const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -52,7 +48,7 @@ export function CustomerBulkList({
   }
 
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(allSelectableIds));
+    setSelected(allSelected ? new Set() : new Set(allIds));
   }
 
   function onDeleteClick(e: React.MouseEvent<HTMLButtonElement>) {
@@ -94,11 +90,9 @@ export function CustomerBulkList({
             checked={allSelected}
             onChange={toggleAll}
             className="h-4 w-4 rounded border-border-strong"
-            disabled={allSelectableIds.length === 0}
+            disabled={allIds.length === 0}
           />
-          {selected.size > 0
-            ? `${selected.size} selected`
-            : `Select all (${allSelectableIds.length} eligible)`}
+          {selected.size > 0 ? `${selected.size} selected` : `Select all`}
         </label>
         <Button
           type="submit"
@@ -127,7 +121,7 @@ export function CustomerBulkList({
             {customers.map((c) => {
               const followUp = c.next_follow_up_at ? new Date(c.next_follow_up_at) : null;
               const overdue = followUp && followUp < now;
-              const eligible = c.bookingCount === 0;
+              const blocked = c.bookingCount > 0;
               return (
                 <tr key={c.id} className="hover:bg-bg-subtle">
                   <td className="px-4 py-3">
@@ -135,13 +129,12 @@ export function CustomerBulkList({
                       type="checkbox"
                       checked={selected.has(c.id)}
                       onChange={() => toggle(c.id)}
-                      disabled={!eligible}
                       title={
-                        eligible
-                          ? "Select"
-                          : "Has bookings — cancel/clear them first to delete"
+                        blocked
+                          ? "Has bookings — will be skipped on delete"
+                          : "Select"
                       }
-                      className="h-4 w-4 rounded border-border-strong disabled:opacity-40"
+                      className="h-4 w-4 rounded border-border-strong"
                     />
                   </td>
                   <td className="px-4 py-3">
