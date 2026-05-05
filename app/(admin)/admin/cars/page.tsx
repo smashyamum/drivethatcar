@@ -35,9 +35,14 @@ export default async function AdminCarsPage({
           <h1 className="text-2xl font-semibold">Cars</h1>
           <p className="mt-1 text-sm text-fg-muted">{cars.length} in stock.</p>
         </div>
-        <Link href="/admin/cars/new">
-          <Button>Add car</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/admin/cars/import">
+            <Button variant="secondary">Import CSV</Button>
+          </Link>
+          <Link href="/admin/cars/new">
+            <Button>Add car</Button>
+          </Link>
+        </div>
       </div>
 
       {deleted && (
