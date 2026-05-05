@@ -1,6 +1,48 @@
 // Manually maintained types for the database schema.
 // In M6 we'll switch to `supabase gen types typescript` and generate these.
 
+export type Role = "owner" | "admin" | "sales";
+
+export const ROLES: Role[] = ["owner", "admin", "sales"];
+
+export const ROLE_LABEL: Record<Role, string> = {
+  owner: "Owner",
+  admin: "Admin",
+  sales: "Sales",
+};
+
+export type OrgPlan = "trial" | "active" | "suspended";
+
+export type Organization = {
+  id: string;
+  slug: string;
+  name: string;
+  plan: OrgPlan;
+  trial_ends_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Membership = {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  role: Role;
+  created_at: string;
+};
+
+export type OrgInvitation = {
+  id: string;
+  organization_id: string;
+  email: string;
+  role: Exclude<Role, "owner">;
+  token_hash: string;
+  invited_by: string | null;
+  expires_at: string;
+  accepted_at: string | null;
+  created_at: string;
+};
+
 export type CarStatus = "available" | "sold" | "hidden";
 export type Transmission = "manual" | "automatic" | "semi_auto";
 export type FuelType = "petrol" | "diesel" | "hybrid" | "phev" | "electric";
@@ -16,6 +58,7 @@ export type BodyType =
 
 export type Car = {
   id: string;
+  organization_id: string;
   slug: string;
   make: string;
   model: string;
@@ -98,6 +141,8 @@ export const LEAD_STATUS_TONE: Record<
 
 export type Customer = {
   id: string;
+  organization_id: string;
+  assigned_to: string | null;
   name: string;
   phone: string;
   email: string;
@@ -122,6 +167,7 @@ export type CustomerActivityKind =
 
 export type CustomerActivity = {
   id: string;
+  organization_id: string;
   customer_id: string;
   kind: CustomerActivityKind;
   body: string | null;
@@ -135,6 +181,8 @@ export type BookingStatus = "confirmed" | "cancelled" | "completed" | "no_show";
 
 export type Booking = {
   id: string;
+  organization_id: string;
+  assigned_to: string | null;
   reference: string;
   car_id: string;
   customer_id: string;
@@ -154,6 +202,7 @@ export type Booking = {
 
 export type BlockedSlot = {
   id: string;
+  organization_id: string;
   start_at: string;
   end_at: string;
   reason: string | null;
@@ -165,7 +214,8 @@ export type WorkingWindow = { start: string; end: string };
 export type WorkingHours = Record<Weekday, WorkingWindow[]>;
 
 export type Settings = {
-  id: 1;
+  id: number;
+  organization_id: string;
   business_name: string | null;
   contact_email: string | null;
   contact_phone: string | null;
