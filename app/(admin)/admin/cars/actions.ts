@@ -218,13 +218,36 @@ export async function deleteCar(id: string) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { count: bookingCount } = await supabase
+  // Cascade through bookings — FK is on delete restrict. We also send a
+  // cancellation email for any *future confirmed* booking that hasn't already
+  // been cancelled (e.g. when admin clicks Delete without first marking
+  // the car sold). Past/cancelled bookings are dropped silently.
+  const nowIso = new Date().toISOString();
+  const { data: futureConfirmed } = await supabase
     .from("bookings")
-    .select("id", { count: "exact", head: true })
-    .eq("car_id", id);
+    .select("id")
+    .eq("car_id", id)
+    .eq("status", "confirmed")
+    .gt("start_at", nowIso);
+  const futureIds = (futureConfirmed ?? []).map((b) => (b as { id: string }).id);
 
-  if ((bookingCount ?? 0) > 0) {
-    redirect(`/admin/cars/${id}?error=has_bookings`);
+  // Send emails BEFORE the row goes away (the email helper joins customer/car).
+  if (futureIds.length > 0) {
+    await Promise.all(
+      futureIds.map((bid) =>
+        sendCancellationEmail(bid).catch((err) => {
+          console.error(`Failed to send cancellation email for ${bid}`, err);
+        }),
+      ),
+    );
+  }
+
+  const { error: bookingsErr, count: bookingsDeleted } = await supabase
+    .from("bookings")
+    .delete({ count: "exact" })
+    .eq("car_id", id);
+  if (bookingsErr) {
+    redirect(`/admin/cars/${id}?error=${encodeURIComponent(bookingsErr.message)}`);
   }
 
   const { error, count } = await supabase
@@ -236,11 +259,13 @@ export async function deleteCar(id: string) {
     redirect(`/admin/cars/${id}?error=${encodeURIComponent(error.message)}`);
   }
   if ((count ?? 0) === 0) {
-    // No row matched — either gone already or RLS blocked it silently.
     redirect(`/admin/cars/${id}?error=no_rows_affected`);
   }
 
   revalidatePath("/admin/cars");
+  revalidatePath("/admin/bookings");
   revalidatePath("/cars");
-  redirect("/admin/cars?deleted=1");
+  const params = new URLSearchParams({ deleted: "1" });
+  if ((bookingsDeleted ?? 0) > 0) params.set("bookings", String(bookingsDeleted));
+  redirect(`/admin/cars?${params}`);
 }

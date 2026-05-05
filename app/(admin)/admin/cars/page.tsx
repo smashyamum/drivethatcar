@@ -16,9 +16,10 @@ const STATUS_TONE: Record<CarStatus, "success" | "warning" | "neutral"> = {
 export default async function AdminCarsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ deleted?: string }>;
+  searchParams: Promise<{ deleted?: string; bookings?: string }>;
 }) {
-  const { deleted } = await searchParams;
+  const { deleted, bookings } = await searchParams;
+  const bookingsN = bookings ? Number(bookings) : 0;
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("cars")
@@ -41,7 +42,7 @@ export default async function AdminCarsPage({
 
       {deleted && (
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          Car deleted.
+          Car deleted{bookingsN > 0 ? ` (and ${bookingsN} booking${bookingsN === 1 ? "" : "s"})` : ""}.
         </p>
       )}
 

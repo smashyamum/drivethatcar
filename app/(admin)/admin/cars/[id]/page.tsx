@@ -84,24 +84,19 @@ export default async function EditCarPage({
           </p>
         )}
         <p className="mt-3 text-sm text-red-800/80">
-          {(bookingCount ?? 0) > 0 ? (
-            <>
-              <strong>{bookingCount}</strong> booking
-              {bookingCount === 1 ? "" : "s"} attached — delete is blocked. To
-              clear them in one step, change status to <strong>sold</strong>{" "}
-              and save: future bookings auto-cancel and customers get a
-              cancellation email. Then delete becomes available.
-            </>
-          ) : (
-            <>
-              No bookings exist for this car. Delete is permanent and will also
-              remove its photos. To keep history, set status to{" "}
-              <strong>sold</strong> or <strong>hidden</strong> instead.
-            </>
-          )}
+          Permanently delete this car. This also removes its photos and{" "}
+          <strong>{bookingCount ?? 0}</strong> booking
+          {bookingCount === 1 ? "" : "s"}. Any future confirmed bookings get
+          a cancellation email automatically. To keep history without
+          deleting, set status to <strong>sold</strong> or{" "}
+          <strong>hidden</strong> instead.
         </p>
         <div className="mt-4">
-          <DeleteCarForm action={deleteAction} carHeadline={carHeadline} />
+          <DeleteCarForm
+            action={deleteAction}
+            carHeadline={carHeadline}
+            bookingCount={bookingCount ?? 0}
+          />
         </div>
       </div>
     </div>
