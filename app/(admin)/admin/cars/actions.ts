@@ -168,34 +168,27 @@ export async function updateCar(
   return {};
 }
 
-export type DeleteCarState = { error?: string };
-
-export async function deleteCar(
-  id: string,
-  _prev: DeleteCarState,
-  _formData: FormData,
-): Promise<DeleteCarState> {
+export async function deleteCar(id: string) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated." };
+  if (!user) redirect("/login");
 
-  // Block delete when bookings exist — FK is on delete restrict, but check
-  // first so we can return a friendly message instead of a Postgres error.
+  // Defense in depth — page also gates the button on this count.
   const { count } = await supabase
     .from("bookings")
     .select("id", { count: "exact", head: true })
     .eq("car_id", id);
 
   if ((count ?? 0) > 0) {
-    return {
-      error: `This car has ${count} booking${count === 1 ? "" : "s"} attached. Mark it as "sold" or "hidden" instead, or cancel and remove its bookings first.`,
-    };
+    redirect(`/admin/cars/${id}?error=has_bookings`);
   }
 
   const { error } = await supabase.from("cars").delete().eq("id", id);
-  if (error) return { error: error.message };
+  if (error) {
+    redirect(`/admin/cars/${id}?error=${encodeURIComponent(error.message)}`);
+  }
 
   revalidatePath("/admin/cars");
   revalidatePath("/cars");

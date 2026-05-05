@@ -11,10 +11,13 @@ export const metadata = { title: "Edit car · Admin" };
 
 export default async function EditCarPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const { id } = await params;
+  const { error: errorParam } = await searchParams;
   const supabase = await createSupabaseServerClient();
   const [{ data: carRow, error }, { data: photoRows }] = await Promise.all([
     supabase.from("cars").select("*").eq("id", id).single(),
@@ -73,31 +76,35 @@ export default async function EditCarPage({
 
       <div className="rounded-[12px] border border-red-200 bg-red-50/40 p-6">
         <h2 className="text-base font-semibold text-red-900">Danger zone</h2>
-        <p className="mt-1 text-sm text-red-800/80">
-          Permanently remove this car from stock.{" "}
+        {errorParam && (
+          <p className="mt-3 rounded-md bg-red-100 px-3 py-2 text-sm text-red-800">
+            {errorParam === "has_bookings"
+              ? `Can't delete — this car has ${bookingCount} booking${bookingCount === 1 ? "" : "s"} attached. Cancel/clear them first, or use status "sold" / "hidden" instead.`
+              : `Delete failed: ${errorParam}`}
+          </p>
+        )}
+        <p className="mt-3 text-sm text-red-800/80">
           {(bookingCount ?? 0) > 0 ? (
             <>
-              This car has <strong>{bookingCount}</strong> booking
-              {bookingCount === 1 ? "" : "s"} — delete won&rsquo;t work until
-              they&rsquo;re cleared. For sold cars, set status to{" "}
-              <strong>sold</strong>; to take a car off the public site without
-              deleting, set it to <strong>hidden</strong>.
+              <strong>{bookingCount}</strong> booking
+              {bookingCount === 1 ? "" : "s"} attached — delete is disabled.
+              For sold cars, set status to <strong>sold</strong>; to take a car
+              off the public site without losing history, set it to{" "}
+              <strong>hidden</strong>.
             </>
           ) : (
             <>
-              No bookings exist for this car, so it&rsquo;s safe to delete. To
-              keep history, set status to <strong>sold</strong> or{" "}
-              <strong>hidden</strong> instead.
+              No bookings exist for this car. Delete is permanent and will also
+              remove its photos. To keep history, set status to{" "}
+              <strong>sold</strong> or <strong>hidden</strong> instead.
             </>
           )}
         </p>
-        <div className="mt-4">
-          <DeleteCarForm
-            action={deleteAction}
-            carHeadline={carHeadline}
-            bookingCount={bookingCount ?? 0}
-          />
-        </div>
+        {(bookingCount ?? 0) === 0 && (
+          <div className="mt-4">
+            <DeleteCarForm action={deleteAction} carHeadline={carHeadline} />
+          </div>
+        )}
       </div>
     </div>
   );
