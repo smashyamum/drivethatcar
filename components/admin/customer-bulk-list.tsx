@@ -51,18 +51,24 @@ export function CustomerBulkList({
     setSelected(allSelected ? new Set() : new Set(allIds));
   }
 
+  const selectedBookings = useMemo(
+    () =>
+      customers
+        .filter((c) => selected.has(c.id))
+        .reduce((sum, c) => sum + c.bookingCount, 0),
+    [customers, selected],
+  );
+
   function onDeleteClick(e: React.MouseEvent<HTMLButtonElement>) {
     if (selected.size === 0) {
       e.preventDefault();
       return;
     }
-    if (
-      !window.confirm(
-        `Permanently delete ${selected.size} lead${selected.size === 1 ? "" : "s"}? This can't be undone.`,
-      )
-    ) {
-      e.preventDefault();
-    }
+    const msg =
+      selectedBookings > 0
+        ? `Permanently delete ${selected.size} lead${selected.size === 1 ? "" : "s"} AND their ${selectedBookings} booking${selectedBookings === 1 ? "" : "s"}? This can't be undone.`
+        : `Permanently delete ${selected.size} lead${selected.size === 1 ? "" : "s"}? This can't be undone.`;
+    if (!window.confirm(msg)) e.preventDefault();
   }
 
   if (customers.length === 0) {
@@ -121,7 +127,6 @@ export function CustomerBulkList({
             {customers.map((c) => {
               const followUp = c.next_follow_up_at ? new Date(c.next_follow_up_at) : null;
               const overdue = followUp && followUp < now;
-              const blocked = c.bookingCount > 0;
               return (
                 <tr key={c.id} className="hover:bg-bg-subtle">
                   <td className="px-4 py-3">
@@ -130,8 +135,8 @@ export function CustomerBulkList({
                       checked={selected.has(c.id)}
                       onChange={() => toggle(c.id)}
                       title={
-                        blocked
-                          ? "Has bookings — will be skipped on delete"
+                        c.bookingCount > 0
+                          ? `Has ${c.bookingCount} booking${c.bookingCount === 1 ? "" : "s"} — they'll be deleted too`
                           : "Select"
                       }
                       className="h-4 w-4 rounded border-border-strong"

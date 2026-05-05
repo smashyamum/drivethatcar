@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { generateUniqueSlug, isValidSlug } from "@/lib/slug";
+import { sendCancellationEmail } from "@/lib/email/booking-emails";
 import type { CarStatus } from "@/lib/supabase/types";
 
 const optionalText = z
@@ -153,6 +154,16 @@ export async function updateCar(
     if (existing) return { fieldErrors: { slug: "Slug already in use." } };
   }
 
+  // Detect status transition into 'sold' so we can cascade-cancel
+  // future bookings on the same car after the update lands.
+  const { data: previous } = await supabase
+    .from("cars")
+    .select("status")
+    .eq("id", id)
+    .maybeSingle();
+  const wasNotSold = previous?.status !== "sold";
+  const isBecomingSold = rest.status === "sold" && wasNotSold;
+
   const update = {
     ...rest,
     price_pence: Math.round(price_pounds * 100),
@@ -161,6 +172,38 @@ export async function updateCar(
 
   const { error } = await supabase.from("cars").update(update).eq("id", id);
   if (error) return { error: error.message };
+
+  if (isBecomingSold) {
+    const nowIso = new Date().toISOString();
+    const { data: futureBookings } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("car_id", id)
+      .eq("status", "confirmed")
+      .gt("start_at", nowIso);
+    const ids = (futureBookings ?? []).map((b) => (b as { id: string }).id);
+
+    if (ids.length > 0) {
+      await supabase
+        .from("bookings")
+        .update({
+          status: "cancelled",
+          cancelled_at: nowIso,
+          cancelled_by: "admin",
+        })
+        .in("id", ids);
+
+      // Fire-and-forget emails — don't block the action on Resend.
+      await Promise.all(
+        ids.map((bid) =>
+          sendCancellationEmail(bid).catch((err) => {
+            console.error(`Failed to send cancellation email for ${bid}`, err);
+          }),
+        ),
+      );
+      revalidatePath("/admin/bookings");
+    }
+  }
 
   revalidatePath("/admin/cars");
   revalidatePath(`/admin/cars/${id}`);

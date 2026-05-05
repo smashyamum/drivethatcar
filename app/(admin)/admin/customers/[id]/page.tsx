@@ -300,30 +300,21 @@ export default async function AdminCustomerDetailPage({
         <h2 className="text-base font-semibold text-red-900">Danger zone</h2>
         {errorParam && (
           <p className="mt-3 rounded-md bg-red-100 px-3 py-2 text-sm text-red-800">
-            {errorParam === "has_bookings"
-              ? `Can't delete — ${bookings.length} booking${bookings.length === 1 ? "" : "s"} attached. Cancel/clear them first, or set the lead status to "lost" instead.`
-              : `Delete failed: ${errorParam}`}
+            Delete failed: {errorParam}
           </p>
         )}
         <p className="mt-3 text-sm text-red-800/80">
-          {bookings.length > 0 ? (
-            <>
-              <strong>{bookings.length}</strong> booking
-              {bookings.length === 1 ? "" : "s"} attached — delete is disabled.
-              Set status to <strong>lost</strong> to keep the history without
-              showing them as active.
-            </>
-          ) : (
-            <>
-              No bookings exist for this lead. Delete is permanent and will
-              also clear their activity log.
-            </>
-          )}
+          Permanently delete this lead. This also removes their{" "}
+          <strong>{bookings.length}</strong> booking
+          {bookings.length === 1 ? "" : "s"} and full activity log. No
+          cancellation email is sent — if you want to notify them first,
+          cancel any future bookings before deleting.
         </p>
         <div className="mt-4">
           <DeleteLeadForm
             action={deleteLead.bind(null, customer.id)}
             customerName={customer.name}
+            bookingCount={bookings.length}
           />
         </div>
       </div>

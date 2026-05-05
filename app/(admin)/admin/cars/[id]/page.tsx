@@ -87,10 +87,10 @@ export default async function EditCarPage({
           {(bookingCount ?? 0) > 0 ? (
             <>
               <strong>{bookingCount}</strong> booking
-              {bookingCount === 1 ? "" : "s"} attached — delete is disabled.
-              For sold cars, set status to <strong>sold</strong>; to take a car
-              off the public site without losing history, set it to{" "}
-              <strong>hidden</strong>.
+              {bookingCount === 1 ? "" : "s"} attached — delete is blocked. To
+              clear them in one step, change status to <strong>sold</strong>{" "}
+              and save: future bookings auto-cancel and customers get a
+              cancellation email. Then delete becomes available.
             </>
           ) : (
             <>

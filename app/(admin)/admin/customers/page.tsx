@@ -25,11 +25,11 @@ export default async function AdminCustomersPage({
     q?: string;
     status?: string;
     deleted?: string;
-    blocked?: string;
+    bookings?: string;
     error?: string;
   }>;
 }) {
-  const { q, status, deleted, blocked, error } = await searchParams;
+  const { q, status, deleted, bookings, error } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   let query = supabase
@@ -77,7 +77,7 @@ export default async function AdminCustomersPage({
   });
 
   const deletedN = deleted ? Number(deleted) : 0;
-  const blockedN = blocked ? Number(blocked) : 0;
+  const bookingsN = bookings ? Number(bookings) : 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -102,9 +102,10 @@ export default async function AdminCustomersPage({
 
       {deletedN > 0 && (
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          Deleted {deletedN} lead{deletedN === 1 ? "" : "s"}.
-          {blockedN > 0 &&
-            ` Skipped ${blockedN} with bookings — set those to "lost" or cancel their bookings first.`}
+          Deleted {deletedN} lead{deletedN === 1 ? "" : "s"}
+          {bookingsN > 0 &&
+            ` and ${bookingsN} booking${bookingsN === 1 ? "" : "s"}`}
+          .
         </p>
       )}
       {error === "none_selected" && (

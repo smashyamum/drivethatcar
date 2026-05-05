@@ -10,11 +10,11 @@ const BulkSchema = z.object({
 });
 
 /**
- * Bulk-delete leads. Customers that still have bookings attached
- * (bookings.customer_id is on delete restrict) are skipped — the page
- * surfaces the count via ?deleted=&blocked=.
- *
- * customer_activities cascade automatically.
+ * Bulk-delete leads. Cascades through bookings (since FK is on delete
+ * restrict, we delete bookings explicitly first), then customer_activities
+ * cascade automatically. No cancellation emails are sent — when an admin
+ * deletes a lead they're cleaning up, not notifying the customer; if they
+ * need to notify they can cancel the booking first.
  */
 export async function deleteLeads(formData: FormData) {
   const supabase = await createSupabaseServerClient();
@@ -37,35 +37,33 @@ export async function deleteLeads(formData: FormData) {
     redirect(`${back}${back.includes("?") ? "&" : "?"}error=none_selected`);
   }
 
-  // Find which of the selected leads still have bookings — those can't go.
-  const { data: bookingRows } = await supabase
+  // Cascade: drop the bookings first (FK is on delete restrict).
+  const { error: bookingsErr, count: bookingsDeleted } = await supabase
     .from("bookings")
-    .select("customer_id")
+    .delete({ count: "exact" })
     .in("customer_id", parsed.data.ids);
-  const blockedSet = new Set(
-    (bookingRows ?? []).map((r) => (r as { customer_id: string }).customer_id),
-  );
-  const deletable = parsed.data.ids.filter((id) => !blockedSet.has(id));
+  if (bookingsErr) {
+    redirect(
+      `${back}${back.includes("?") ? "&" : "?"}error=${encodeURIComponent(bookingsErr.message)}`,
+    );
+  }
 
-  let deleted = 0;
-  if (deletable.length > 0) {
-    const { error, count } = await supabase
-      .from("customers")
-      .delete({ count: "exact" })
-      .in("id", deletable);
-    if (error) {
-      redirect(
-        `${back}${back.includes("?") ? "&" : "?"}error=${encodeURIComponent(error.message)}`,
-      );
-    }
-    deleted = count ?? deletable.length;
+  const { error, count } = await supabase
+    .from("customers")
+    .delete({ count: "exact" })
+    .in("id", parsed.data.ids);
+  if (error) {
+    redirect(
+      `${back}${back.includes("?") ? "&" : "?"}error=${encodeURIComponent(error.message)}`,
+    );
   }
 
   revalidatePath("/admin/customers");
+  revalidatePath("/admin/bookings");
 
   const result = new URLSearchParams(params);
-  result.set("deleted", String(deleted));
-  if (blockedSet.size > 0) result.set("blocked", String(blockedSet.size));
+  result.set("deleted", String(count ?? 0));
+  if ((bookingsDeleted ?? 0) > 0) result.set("bookings", String(bookingsDeleted));
   redirect(`/admin/customers?${result.toString()}`);
 }
 
@@ -76,13 +74,13 @@ export async function deleteLead(id: string) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { count: bookingCount } = await supabase
+  // Cascade: bookings first (FK is on delete restrict), then customer.
+  const { error: bookingsErr, count: bookingsDeleted } = await supabase
     .from("bookings")
-    .select("id", { count: "exact", head: true })
+    .delete({ count: "exact" })
     .eq("customer_id", id);
-
-  if ((bookingCount ?? 0) > 0) {
-    redirect(`/admin/customers/${id}?error=has_bookings`);
+  if (bookingsErr) {
+    redirect(`/admin/customers/${id}?error=${encodeURIComponent(bookingsErr.message)}`);
   }
 
   const { error, count } = await supabase
@@ -98,5 +96,8 @@ export async function deleteLead(id: string) {
   }
 
   revalidatePath("/admin/customers");
-  redirect("/admin/customers?deleted=1");
+  revalidatePath("/admin/bookings");
+  const params = new URLSearchParams({ deleted: "1" });
+  if ((bookingsDeleted ?? 0) > 0) params.set("bookings", String(bookingsDeleted));
+  redirect(`/admin/customers?${params}`);
 }
