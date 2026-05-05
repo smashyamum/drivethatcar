@@ -1,14 +1,12 @@
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { CustomerBulkList } from "@/components/admin/customer-bulk-list";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { formatDateTimeInTz } from "@/lib/tz";
 import {
   LEAD_STATUSES,
   LEAD_STATUS_LABEL,
-  LEAD_STATUS_TONE,
   type Customer,
   type LeadStatus,
   type Settings,
@@ -23,9 +21,15 @@ type CustomerRow = Customer & {
 export default async function AdminCustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    deleted?: string;
+    blocked?: string;
+    error?: string;
+  }>;
 }) {
-  const { q, status } = await searchParams;
+  const { q, status, deleted, blocked, error } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   let query = supabase
@@ -51,7 +55,6 @@ export default async function AdminCustomersPage({
   const customers = (customerData ?? []) as unknown as CustomerRow[];
   const tz = (settingsData as Settings | null)?.timezone ?? "Asia/Dubai";
 
-  // Secondary sort: most recent booking first when no follow-up.
   customers.sort((a, b) => {
     if (a.next_follow_up_at && b.next_follow_up_at) {
       return a.next_follow_up_at < b.next_follow_up_at ? -1 : 1;
@@ -63,7 +66,18 @@ export default async function AdminCustomersPage({
     return aLast < bLast ? 1 : -1;
   });
 
-  const now = new Date();
+  const rows = customers.map((c) => {
+    const bs = c.bookings ?? [];
+    const last = bs.slice().sort((a, b) => (a.start_at < b.start_at ? 1 : -1))[0];
+    return {
+      ...c,
+      bookingCount: bs.length,
+      lastBookingAt: last?.start_at ?? null,
+    };
+  });
+
+  const deletedN = deleted ? Number(deleted) : 0;
+  const blockedN = blocked ? Number(blocked) : 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -85,6 +99,24 @@ export default async function AdminCustomersPage({
           </Link>
         </div>
       </div>
+
+      {deletedN > 0 && (
+        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          Deleted {deletedN} lead{deletedN === 1 ? "" : "s"}.
+          {blockedN > 0 &&
+            ` Skipped ${blockedN} with bookings — set those to "lost" or cancel their bookings first.`}
+        </p>
+      )}
+      {error === "none_selected" && (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Select at least one lead to delete.
+        </p>
+      )}
+      {error && error !== "none_selected" && (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
+          Delete failed: {error}
+        </p>
+      )}
 
       <form action="/admin/customers" method="get" className="flex flex-wrap gap-2">
         <Input
@@ -111,69 +143,13 @@ export default async function AdminCustomersPage({
         )}
       </form>
 
-      {customers.length === 0 ? (
-        <div className="rounded-[12px] border border-dashed border-border-strong bg-bg-subtle p-8 text-center text-sm text-fg-muted">
-          {q || status
-            ? "No matches."
-            : "No leads yet — they'll appear here once they book or you add them manually."}
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-[12px] border border-border bg-bg">
-          <table className="w-full text-sm">
-            <thead className="bg-bg-subtle text-left text-xs uppercase tracking-wide text-fg-muted">
-              <tr>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Contact</th>
-                <th className="px-4 py-3">Bookings</th>
-                <th className="px-4 py-3">Follow-up</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {customers.map((c) => {
-                const bookings = c.bookings ?? [];
-                const followUp = c.next_follow_up_at ? new Date(c.next_follow_up_at) : null;
-                const overdue = followUp && followUp < now;
-                return (
-                  <tr key={c.id} className="hover:bg-bg-subtle">
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/admin/customers/${c.id}`}
-                        className="font-medium hover:underline"
-                      >
-                        {c.name}
-                      </Link>
-                      {c.lead_source && (
-                        <div className="text-xs text-fg-muted">via {c.lead_source}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge tone={LEAD_STATUS_TONE[c.lead_status]}>
-                        {LEAD_STATUS_LABEL[c.lead_status]}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="text-fg">{c.phone}</div>
-                      <div className="text-xs text-fg-muted">{c.email}</div>
-                    </td>
-                    <td className="px-4 py-3 text-fg-muted">{bookings.length}</td>
-                    <td className="px-4 py-3">
-                      {followUp ? (
-                        <span className={overdue ? "font-semibold text-red-700" : "text-fg"}>
-                          {formatDateTimeInTz(followUp, tz)}
-                          {overdue ? " · overdue" : ""}
-                        </span>
-                      ) : (
-                        <span className="text-fg-muted">—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <CustomerBulkList
+        customers={rows}
+        q={q ?? ""}
+        status={status ?? ""}
+        tz={tz}
+        nowIso={new Date().toISOString()}
+      />
     </div>
   );
 }

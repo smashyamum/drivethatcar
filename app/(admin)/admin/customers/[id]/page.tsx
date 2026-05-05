@@ -9,6 +9,8 @@ import {
   StatusForm,
   WhatsAppForm,
 } from "@/components/admin/customer-detail-actions";
+import { DeleteLeadForm } from "@/components/admin/delete-lead-form";
+import { deleteLead } from "../actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDateTimeInTz } from "@/lib/tz";
 import {
@@ -58,10 +60,13 @@ type BookingWithCar = Booking & {
 
 export default async function AdminCustomerDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const { id } = await params;
+  const { error: errorParam } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   const [
@@ -290,6 +295,40 @@ export default async function AdminCustomerDetailPage({
           </div>
         )}
       </section>
+
+      <div className="rounded-[12px] border border-red-200 bg-red-50/40 p-6">
+        <h2 className="text-base font-semibold text-red-900">Danger zone</h2>
+        {errorParam && (
+          <p className="mt-3 rounded-md bg-red-100 px-3 py-2 text-sm text-red-800">
+            {errorParam === "has_bookings"
+              ? `Can't delete — ${bookings.length} booking${bookings.length === 1 ? "" : "s"} attached. Cancel/clear them first, or set the lead status to "lost" instead.`
+              : `Delete failed: ${errorParam}`}
+          </p>
+        )}
+        <p className="mt-3 text-sm text-red-800/80">
+          {bookings.length > 0 ? (
+            <>
+              <strong>{bookings.length}</strong> booking
+              {bookings.length === 1 ? "" : "s"} attached — delete is disabled.
+              Set status to <strong>lost</strong> to keep the history without
+              showing them as active.
+            </>
+          ) : (
+            <>
+              No bookings exist for this lead. Delete is permanent and will
+              also clear their activity log.
+            </>
+          )}
+        </p>
+        {bookings.length === 0 && (
+          <div className="mt-4">
+            <DeleteLeadForm
+              action={deleteLead.bind(null, customer.id)}
+              customerName={customer.name}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
