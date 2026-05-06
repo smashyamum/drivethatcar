@@ -4,31 +4,15 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { getActiveMembershipOrNull } from "@/lib/tenant";
-import type { Plan } from "@/lib/plan";
+import {
+  getPriceId,
+  stripeClient,
+  type BillingCycle,
+  type CheckoutPlan,
+} from "@/lib/stripe";
 
-const TRIAL_DAYS = 7;
-
-// Maps the value posted from the form (`plan` field) to the actual plan tier
-// stored on the org. "free" → permanent free; "starter"/"pro" → 7-day trial
-// of that tier (auto-rolls back to free when the trial expires).
-function resolvePlan(formValue: string): { plan: Plan; trialEndsAt: string | null } {
-  if (formValue === "free") {
-    return { plan: "free", trialEndsAt: null };
-  }
-  if (formValue === "starter") {
-    return {
-      plan: "starter_trial",
-      trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
-    };
-  }
-  if (formValue === "pro") {
-    return {
-      plan: "pro_trial",
-      trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
-    };
-  }
-  // Fallback: treat anything unexpected as free.
-  return { plan: "free", trialEndsAt: null };
+function siteUrl(): string {
+  return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }
 
 export async function startTrial(formData: FormData) {
@@ -42,17 +26,67 @@ export async function startTrial(formData: FormData) {
   if (!membership) redirect("/onboarding");
 
   const formValue = String(formData.get("plan") ?? "free");
-  const { plan, trialEndsAt } = resolvePlan(formValue);
 
-  // Use the service client: org updates need to bypass RLS write checks
-  // for plan/trial fields, and we trust the membership check above.
+  // Free path: no Stripe involvement — just downgrade the org and continue.
+  if (formValue === "free") {
+    const service = createSupabaseServiceClient();
+    await service
+      .from("organizations")
+      .update({ plan: "free", trial_ends_at: null })
+      .eq("id", membership.orgId);
+    redirect("/admin");
+  }
+
+  if (formValue !== "starter" && formValue !== "pro") {
+    redirect("/onboarding/choose-plan?error=invalid_plan");
+  }
+  const plan = formValue as CheckoutPlan;
+  const billing = String(formData.get("billing") ?? "monthly") as BillingCycle;
+
   const service = createSupabaseServiceClient();
-  await service
+  const { data: org } = await service
     .from("organizations")
-    .update({ plan, trial_ends_at: trialEndsAt })
-    .eq("id", membership.orgId);
+    .select("id, name, stripe_customer_id")
+    .eq("id", membership.orgId)
+    .single();
+  if (!org) redirect("/onboarding/choose-plan?error=org_not_found");
 
-  // Stripe checkout will be wired here later for paid plans. For now everyone
-  // lands on /admin — paid trial users have 7 days before they get prompted.
-  redirect("/admin");
+  const stripe = stripeClient();
+
+  // Reuse an existing Stripe Customer if we already created one; otherwise
+  // create one keyed to this org so the webhook can find it later.
+  let customerId = org.stripe_customer_id as string | null;
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      name: org.name,
+      email: user.email ?? undefined,
+      metadata: { organization_id: membership.orgId },
+    });
+    customerId = customer.id;
+    await service
+      .from("organizations")
+      .update({ stripe_customer_id: customerId })
+      .eq("id", membership.orgId);
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "subscription",
+    customer: customerId,
+    line_items: [{ price: getPriceId(plan, billing), quantity: 1 }],
+    success_url: `${siteUrl()}/admin?welcome=1`,
+    cancel_url: `${siteUrl()}/onboarding/choose-plan?canceled=1`,
+    subscription_data: {
+      trial_period_days: 7,
+      metadata: { organization_id: membership.orgId },
+    },
+    // Force card-on-file so we can auto-charge on day 8 unless they cancel.
+    payment_method_collection: "always",
+    allow_promotion_codes: true,
+    billing_address_collection: "auto",
+  });
+
+  if (!session.url) {
+    redirect("/onboarding/choose-plan?error=checkout_failed");
+  }
+  redirect(session.url);
 }

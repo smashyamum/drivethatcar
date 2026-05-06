@@ -133,7 +133,7 @@ export function PlanPicker() {
       </div>
 
       <p className="text-center text-xs text-fg-muted">
-        No credit card needed for the free trial. You&apos;ll choose billing after 7 days.
+        We collect your card to start the trial. You won&apos;t be charged until day 8 — cancel anytime before then with one click.
       </p>
 
       <form action={startTrial} className="flex justify-center">
