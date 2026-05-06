@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrgId } from "@/lib/tenant";
 import { REMINDER_OFFSET_PRESETS, WEEKDAYS } from "@/lib/supabase/types";
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -44,6 +45,7 @@ export async function saveSettings(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
+  const orgId = await getActiveOrgId();
 
   // Parse working_hours from individual form fields:
   // for each weekday: open=on/off, start=HH:mm, end=HH:mm
@@ -78,7 +80,7 @@ export async function saveSettings(
   const { error } = await supabase
     .from("settings")
     .update(parsed.data)
-    .eq("id", 1);
+    .eq("organization_id", orgId);
 
   if (error) return { error: error.message };
 

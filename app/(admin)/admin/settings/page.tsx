@@ -1,15 +1,17 @@
 import { SettingsForm } from "@/components/admin/settings-form";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrgId } from "@/lib/tenant";
 import type { Settings } from "@/lib/supabase/types";
 
 export const metadata = { title: "Settings · Admin" };
 
 export default async function SettingsPage() {
   const supabase = await createSupabaseServerClient();
+  const orgId = await getActiveOrgId();
   const { data, error } = await supabase
     .from("settings")
     .select("*")
-    .eq("id", 1)
+    .eq("organization_id", orgId)
     .single();
 
   if (error || !data) {

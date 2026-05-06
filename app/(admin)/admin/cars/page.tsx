@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrgId } from "@/lib/tenant";
 import type { Car, CarStatus } from "@/lib/supabase/types";
 import { formatMileage, formatPrice } from "@/lib/utils";
 
@@ -21,9 +22,11 @@ export default async function AdminCarsPage({
   const { deleted, bookings } = await searchParams;
   const bookingsN = bookings ? Number(bookings) : 0;
   const supabase = await createSupabaseServerClient();
+  const orgId = await getActiveOrgId();
   const { data, error } = await supabase
     .from("cars")
     .select("*")
+    .eq("organization_id", orgId)
     .order("created_at", { ascending: false });
 
   const cars = (data ?? []) as Car[];

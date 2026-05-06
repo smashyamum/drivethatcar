@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrgId } from "@/lib/tenant";
 import { formatDateTimeInTz } from "@/lib/tz";
 import type { Booking, BookingStatus, Car, Customer, Settings } from "@/lib/supabase/types";
 
@@ -29,14 +30,16 @@ type BookingRow = Booking & {
 
 export default async function AdminBookingsPage() {
   const supabase = await createSupabaseServerClient();
+  const orgId = await getActiveOrgId();
   const [{ data: bookingData }, { data: settingsData }] = await Promise.all([
     supabase
       .from("bookings")
       .select(
         "*, car:cars(id, year, make, model, variant, slug), customer:customers(id, name, phone)",
       )
+      .eq("organization_id", orgId)
       .order("start_at", { ascending: false }),
-    supabase.from("settings").select("*").eq("id", 1).single(),
+    supabase.from("settings").select("*").eq("organization_id", orgId).single(),
   ]);
 
   const bookings = (bookingData ?? []) as unknown as BookingRow[];

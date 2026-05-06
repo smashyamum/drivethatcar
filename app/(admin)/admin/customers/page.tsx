@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { CustomerBulkList } from "@/components/admin/customer-bulk-list";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrgId } from "@/lib/tenant";
 import {
   LEAD_STATUSES,
   LEAD_STATUS_LABEL,
@@ -31,10 +32,12 @@ export default async function AdminCustomersPage({
 }) {
   const { q, status, deleted, bookings, error } = await searchParams;
   const supabase = await createSupabaseServerClient();
+  const orgId = await getActiveOrgId();
 
   let query = supabase
     .from("customers")
-    .select("*, bookings(id, start_at, status)");
+    .select("*, bookings(id, start_at, status)")
+    .eq("organization_id", orgId);
 
   if (q && q.trim()) {
     const term = q.trim();
@@ -49,7 +52,7 @@ export default async function AdminCustomersPage({
 
   const [{ data: customerData }, { data: settingsData }] = await Promise.all([
     query.order("next_follow_up_at", { ascending: true, nullsFirst: false }),
-    supabase.from("settings").select("*").eq("id", 1).single(),
+    supabase.from("settings").select("*").eq("organization_id", orgId).single(),
   ]);
 
   const customers = (customerData ?? []) as unknown as CustomerRow[];

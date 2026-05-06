@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrgId } from "@/lib/tenant";
 import { generateUniqueSlug, isValidSlug } from "@/lib/slug";
 import { sendCancellationEmail } from "@/lib/email/booking-emails";
 import type { CarStatus } from "@/lib/supabase/types";
@@ -96,17 +97,28 @@ export async function createCar(_prev: CarFormState, formData: FormData): Promis
   }
 
   const supabase = await createSupabaseServerClient();
+  const orgId = await getActiveOrgId();
   const { price_pounds, slug: providedSlug, ...rest } = parsed.data;
 
   let slug: string;
   if (providedSlug && providedSlug.length > 0) {
     if (!isValidSlug(providedSlug)) return { error: "Invalid slug format." };
-    const { data: existing } = await supabase.from("cars").select("id").eq("slug", providedSlug).maybeSingle();
+    const { data: existing } = await supabase
+      .from("cars")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("slug", providedSlug)
+      .maybeSingle();
     if (existing) return { fieldErrors: { slug: "Slug already in use." } };
     slug = providedSlug;
   } else {
     slug = await generateUniqueSlug(rest, async (candidate) => {
-      const { data } = await supabase.from("cars").select("id").eq("slug", candidate).maybeSingle();
+      const { data } = await supabase
+        .from("cars")
+        .select("id")
+        .eq("organization_id", orgId)
+        .eq("slug", candidate)
+        .maybeSingle();
       return !!data;
     });
   }
@@ -114,6 +126,7 @@ export async function createCar(_prev: CarFormState, formData: FormData): Promis
   const { data: created, error } = await supabase
     .from("cars")
     .insert({
+      organization_id: orgId,
       ...rest,
       slug,
       price_pence: Math.round(price_pounds * 100),

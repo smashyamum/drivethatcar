@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrgId } from "@/lib/tenant";
 import { LEAD_STATUSES, type LeadStatus } from "@/lib/supabase/types";
 
 const E164ish = /^\+?[\d\s().-]{7,20}$/;
@@ -32,6 +33,7 @@ export async function createLead(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
+  const orgId = await getActiveOrgId();
 
   const interestedRaw = (formData.get("interested_car_id") as string)?.trim() ?? "";
   const parsed = Schema.safeParse({
@@ -59,6 +61,7 @@ export async function createLead(
   const { data: existing } = await supabase
     .from("customers")
     .select("id")
+    .eq("organization_id", orgId)
     .eq("phone", data.phone)
     .eq("email", normalisedEmail)
     .maybeSingle();
@@ -70,6 +73,7 @@ export async function createLead(
   const { data: created, error } = await supabase
     .from("customers")
     .insert({
+      organization_id: orgId,
       name: data.name,
       phone: data.phone,
       email: normalisedEmail,
@@ -83,6 +87,7 @@ export async function createLead(
 
   await supabase.from("customer_activities").insert([
     {
+      organization_id: orgId,
       customer_id: created.id,
       kind: "lead_created",
       metadata: { source: data.lead_source ?? null },
@@ -91,6 +96,7 @@ export async function createLead(
     ...(data.initial_note
       ? [
           {
+            organization_id: orgId,
             customer_id: created.id,
             kind: "note" as const,
             body: data.initial_note,

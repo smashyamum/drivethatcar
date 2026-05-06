@@ -1,21 +1,11 @@
 -- M7 PR 1: multi-tenant foundation
---
--- Adds organisations, memberships, invitations.
--- Backfills the existing dealer's data into a single org and gives
--- the existing user an Owner membership.
--- Adds organization_id to every tenant table (with a default that
--- points at the lone org, so app code that hasn't been updated yet
--- keeps writing valid rows). PR 2 will start filtering by org in
--- queries; PR 3+ moves public pages under /d/<slug>.
--- Adds assigned_to to customers + bookings (used by the Sales role
--- in PR 5; nullable for now).
--- Rewrites RLS to be membership-aware.
+-- Idempotent: safe to re-run if a previous attempt partially completed.
 
 -- ============================================================================
 -- Tenancy tables
 -- ============================================================================
 
-create table organizations (
+create table if not exists organizations (
   id uuid primary key default gen_random_uuid(),
   slug text not null unique,
   name text not null,
@@ -25,11 +15,12 @@ create table organizations (
   updated_at timestamptz not null default now()
 );
 
+drop trigger if exists organizations_set_updated_at on organizations;
 create trigger organizations_set_updated_at
   before update on organizations
   for each row execute function set_updated_at();
 
-create table memberships (
+create table if not exists memberships (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references organizations(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -38,10 +29,10 @@ create table memberships (
   unique (organization_id, user_id)
 );
 
-create index memberships_user_id_idx on memberships(user_id);
-create index memberships_organization_id_idx on memberships(organization_id);
+create index if not exists memberships_user_id_idx on memberships(user_id);
+create index if not exists memberships_organization_id_idx on memberships(organization_id);
 
-create table org_invitations (
+create table if not exists org_invitations (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references organizations(id) on delete cascade,
   email text not null,
@@ -53,9 +44,9 @@ create table org_invitations (
   created_at timestamptz not null default now()
 );
 
-create index org_invitations_organization_id_idx on org_invitations(organization_id);
-create index org_invitations_email_idx on org_invitations(email);
-create unique index org_invitations_token_hash_idx on org_invitations(token_hash);
+create index if not exists org_invitations_organization_id_idx on org_invitations(organization_id);
+create index if not exists org_invitations_email_idx on org_invitations(email);
+create unique index if not exists org_invitations_token_hash_idx on org_invitations(token_hash);
 
 alter table organizations enable row level security;
 alter table memberships enable row level security;
@@ -98,7 +89,8 @@ $$;
 insert into organizations (slug, name)
   select 'drivethatcar', coalesce(business_name, 'Drive That Car')
   from settings
-  where id = 1;
+  where id = 1
+  on conflict (slug) do nothing;
 
 insert into memberships (organization_id, user_id, role)
   select
@@ -107,75 +99,78 @@ insert into memberships (organization_id, user_id, role)
     'owner'
   from auth.users u
   order by u.created_at asc
-  limit 1;
+  limit 1
+  on conflict (organization_id, user_id) do nothing;
 
 -- ============================================================================
 -- Add organization_id to tenant tables
 -- ============================================================================
 
 alter table cars
-  add column organization_id uuid not null
+  add column if not exists organization_id uuid not null
     default default_organization_id()
     references organizations(id) on delete cascade;
-create index cars_organization_id_idx on cars(organization_id);
+create index if not exists cars_organization_id_idx on cars(organization_id);
 
 -- Replace global slug uniqueness with per-org uniqueness
-alter table cars drop constraint cars_slug_key;
-create unique index cars_organization_id_slug_key on cars(organization_id, slug);
+alter table cars drop constraint if exists cars_slug_key;
+create unique index if not exists cars_organization_id_slug_key on cars(organization_id, slug);
 
 alter table customers
-  add column organization_id uuid not null
+  add column if not exists organization_id uuid not null
     default default_organization_id()
-    references organizations(id) on delete cascade,
-  add column assigned_to uuid references auth.users(id) on delete set null;
-create index customers_organization_id_idx on customers(organization_id);
-create index customers_assigned_to_idx on customers(assigned_to);
+    references organizations(id) on delete cascade;
+alter table customers
+  add column if not exists assigned_to uuid references auth.users(id) on delete set null;
+create index if not exists customers_organization_id_idx on customers(organization_id);
+create index if not exists customers_assigned_to_idx on customers(assigned_to);
 
 drop index if exists customers_phone_email_idx;
-create unique index customers_organization_id_phone_email_idx
+create unique index if not exists customers_organization_id_phone_email_idx
   on customers(organization_id, phone, email);
 
 alter table bookings
-  add column organization_id uuid not null
+  add column if not exists organization_id uuid not null
     default default_organization_id()
-    references organizations(id) on delete cascade,
-  add column assigned_to uuid references auth.users(id) on delete set null;
-create index bookings_organization_id_idx on bookings(organization_id);
-create index bookings_assigned_to_idx on bookings(assigned_to);
+    references organizations(id) on delete cascade;
+alter table bookings
+  add column if not exists assigned_to uuid references auth.users(id) on delete set null;
+create index if not exists bookings_organization_id_idx on bookings(organization_id);
+create index if not exists bookings_assigned_to_idx on bookings(assigned_to);
 
-alter table bookings drop constraint bookings_reference_key;
-create unique index bookings_organization_id_reference_key
+alter table bookings drop constraint if exists bookings_reference_key;
+create unique index if not exists bookings_organization_id_reference_key
   on bookings(organization_id, reference);
 
 alter table customer_activities
-  add column organization_id uuid not null
+  add column if not exists organization_id uuid not null
     default default_organization_id()
     references organizations(id) on delete cascade;
-create index customer_activities_organization_id_idx on customer_activities(organization_id);
+create index if not exists customer_activities_organization_id_idx on customer_activities(organization_id);
 
 alter table blocked_slots
-  add column organization_id uuid not null
+  add column if not exists organization_id uuid not null
     default default_organization_id()
     references organizations(id) on delete cascade;
-create index blocked_slots_organization_id_idx on blocked_slots(organization_id);
+create index if not exists blocked_slots_organization_id_idx on blocked_slots(organization_id);
 
 alter table email_log
-  add column organization_id uuid not null
+  add column if not exists organization_id uuid not null
     default default_organization_id()
     references organizations(id) on delete cascade;
-create index email_log_organization_id_idx on email_log(organization_id);
+create index if not exists email_log_organization_id_idx on email_log(organization_id);
 
 -- Settings: was a singleton (id=1). Keep id around so existing queries
 -- (.eq("id", 1)) still work in PR 1; PR 2 swaps queries to organization_id.
 -- Switch id to a sequence so additional rows can exist for new orgs.
 alter table settings
-  add column organization_id uuid not null
+  add column if not exists organization_id uuid not null
     default default_organization_id()
     references organizations(id) on delete cascade;
-create unique index settings_organization_id_key on settings(organization_id);
+create unique index if not exists settings_organization_id_key on settings(organization_id);
 
-alter table settings drop constraint settings_id_check;
-create sequence settings_id_seq as smallint owned by settings.id;
+alter table settings drop constraint if exists settings_id_check;
+create sequence if not exists settings_id_seq as smallint owned by settings.id;
 alter table settings alter column id set default nextval('settings_id_seq');
 select setval('settings_id_seq', greatest(coalesce((select max(id) from settings), 0), 1) + 1);
 
@@ -183,6 +178,7 @@ select setval('settings_id_seq', greatest(coalesce((select max(id) from settings
 -- RLS on the new tables
 -- ============================================================================
 
+drop policy if exists "members read their organizations" on organizations;
 create policy "members read their organizations"
   on organizations for select to authenticated
   using (
@@ -193,11 +189,13 @@ create policy "members read their organizations"
     )
   );
 
+drop policy if exists "owners and admins update their organization" on organizations;
 create policy "owners and admins update their organization"
   on organizations for update to authenticated
   using (auth_user_org_role(id) in ('owner', 'admin'))
   with check (auth_user_org_role(id) in ('owner', 'admin'));
 
+drop policy if exists "members read memberships in their orgs" on memberships;
 create policy "members read memberships in their orgs"
   on memberships for select to authenticated
   using (
@@ -205,19 +203,23 @@ create policy "members read memberships in their orgs"
     OR auth_user_org_role(organization_id) in ('owner', 'admin')
   );
 
+drop policy if exists "owners and admins manage memberships" on memberships;
 create policy "owners and admins manage memberships"
   on memberships for insert to authenticated
   with check (auth_user_org_role(organization_id) in ('owner', 'admin'));
 
+drop policy if exists "owners and admins update memberships" on memberships;
 create policy "owners and admins update memberships"
   on memberships for update to authenticated
   using (auth_user_org_role(organization_id) in ('owner', 'admin'))
   with check (auth_user_org_role(organization_id) in ('owner', 'admin'));
 
+drop policy if exists "owners and admins delete memberships" on memberships;
 create policy "owners and admins delete memberships"
   on memberships for delete to authenticated
   using (auth_user_org_role(organization_id) in ('owner', 'admin'));
 
+drop policy if exists "owners and admins manage invitations" on org_invitations;
 create policy "owners and admins manage invitations"
   on org_invitations for all to authenticated
   using (auth_user_org_role(organization_id) in ('owner', 'admin'))
@@ -228,22 +230,30 @@ create policy "owners and admins manage invitations"
 -- ============================================================================
 
 drop policy if exists "authed full access on cars" on cars;
+drop policy if exists "org members on cars (read)" on cars;
 create policy "org members on cars (read)"
   on cars for select to authenticated
   using (auth_user_org_role(organization_id) is not null);
+
+drop policy if exists "org members on cars (insert)" on cars;
 create policy "org members on cars (insert)"
   on cars for insert to authenticated
   with check (auth_user_org_role(organization_id) in ('owner', 'admin'));
+
+drop policy if exists "org members on cars (update)" on cars;
 create policy "org members on cars (update)"
   on cars for update to authenticated
   using (auth_user_org_role(organization_id) in ('owner', 'admin'))
   with check (auth_user_org_role(organization_id) in ('owner', 'admin'));
+
+drop policy if exists "org members on cars (delete)" on cars;
 create policy "org members on cars (delete)"
   on cars for delete to authenticated
   using (auth_user_org_role(organization_id) in ('owner', 'admin'));
 
 -- car_photos has no organization_id; gate via cars join.
 drop policy if exists "authed full access on car_photos" on car_photos;
+drop policy if exists "org members on car_photos" on car_photos;
 create policy "org members on car_photos"
   on car_photos for all to authenticated
   using (
@@ -264,6 +274,7 @@ create policy "org members on car_photos"
 drop policy if exists "authed full access on customers" on customers;
 -- Sales sees rows assigned to them or unassigned (so they can claim leads).
 -- Owner/Admin see everything in the org.
+drop policy if exists "org members on customers (read)" on customers;
 create policy "org members on customers (read)"
   on customers for select to authenticated
   using (
@@ -273,9 +284,13 @@ create policy "org members on customers (read)"
       AND (assigned_to = auth.uid() OR assigned_to is null)
     )
   );
+
+drop policy if exists "org members on customers (insert)" on customers;
 create policy "org members on customers (insert)"
   on customers for insert to authenticated
   with check (auth_user_org_role(organization_id) is not null);
+
+drop policy if exists "org members on customers (update)" on customers;
 create policy "org members on customers (update)"
   on customers for update to authenticated
   using (
@@ -286,11 +301,14 @@ create policy "org members on customers (update)"
     auth_user_org_role(organization_id) in ('owner', 'admin')
     OR (auth_user_org_role(organization_id) = 'sales' AND assigned_to = auth.uid())
   );
+
+drop policy if exists "org members on customers (delete)" on customers;
 create policy "org members on customers (delete)"
   on customers for delete to authenticated
   using (auth_user_org_role(organization_id) in ('owner', 'admin'));
 
 drop policy if exists "authed full access on bookings" on bookings;
+drop policy if exists "org members on bookings (read)" on bookings;
 create policy "org members on bookings (read)"
   on bookings for select to authenticated
   using (
@@ -300,9 +318,13 @@ create policy "org members on bookings (read)"
       AND (assigned_to = auth.uid() OR assigned_to is null)
     )
   );
+
+drop policy if exists "org members on bookings (insert)" on bookings;
 create policy "org members on bookings (insert)"
   on bookings for insert to authenticated
   with check (auth_user_org_role(organization_id) is not null);
+
+drop policy if exists "org members on bookings (update)" on bookings;
 create policy "org members on bookings (update)"
   on bookings for update to authenticated
   using (
@@ -313,30 +335,39 @@ create policy "org members on bookings (update)"
     auth_user_org_role(organization_id) in ('owner', 'admin')
     OR (auth_user_org_role(organization_id) = 'sales' AND assigned_to = auth.uid())
   );
+
+drop policy if exists "org members on bookings (delete)" on bookings;
 create policy "org members on bookings (delete)"
   on bookings for delete to authenticated
   using (auth_user_org_role(organization_id) in ('owner', 'admin'));
 
 drop policy if exists "authed full access on blocked_slots" on blocked_slots;
+drop policy if exists "org members on blocked_slots" on blocked_slots;
 create policy "org members on blocked_slots"
   on blocked_slots for all to authenticated
   using (auth_user_org_role(organization_id) is not null)
   with check (auth_user_org_role(organization_id) in ('owner', 'admin'));
 
 drop policy if exists "authed full access on settings" on settings;
+drop policy if exists "org members on settings (read)" on settings;
 create policy "org members on settings (read)"
   on settings for select to authenticated
   using (auth_user_org_role(organization_id) is not null);
+
+drop policy if exists "owners and admins update settings" on settings;
 create policy "owners and admins update settings"
   on settings for update to authenticated
   using (auth_user_org_role(organization_id) in ('owner', 'admin'))
   with check (auth_user_org_role(organization_id) in ('owner', 'admin'));
+
+drop policy if exists "owners and admins insert settings" on settings;
 create policy "owners and admins insert settings"
   on settings for insert to authenticated
   with check (auth_user_org_role(organization_id) in ('owner', 'admin'));
 
 drop policy if exists "authed full access on customer_activities" on customer_activities;
 -- Activity rows inherit visibility from the parent customer (sales row-scoping).
+drop policy if exists "org members on customer_activities (read)" on customer_activities;
 create policy "org members on customer_activities (read)"
   on customer_activities for select to authenticated
   using (
@@ -352,14 +383,19 @@ create policy "org members on customer_activities (read)"
         )
     )
   );
+
+drop policy if exists "org members on customer_activities (insert)" on customer_activities;
 create policy "org members on customer_activities (insert)"
   on customer_activities for insert to authenticated
   with check (auth_user_org_role(organization_id) is not null);
+
+drop policy if exists "org members on customer_activities (delete)" on customer_activities;
 create policy "org members on customer_activities (delete)"
   on customer_activities for delete to authenticated
   using (auth_user_org_role(organization_id) in ('owner', 'admin'));
 
 drop policy if exists "authed full access on email_log" on email_log;
+drop policy if exists "org members on email_log" on email_log;
 create policy "org members on email_log"
   on email_log for select to authenticated
   using (auth_user_org_role(organization_id) is not null);

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrgId } from "@/lib/tenant";
 import { formatDateTimeInTz } from "@/lib/tz";
 import type {
   Booking,
@@ -36,6 +37,7 @@ export default async function AdminBookingDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
+  const orgId = await getActiveOrgId();
 
   const [{ data: bookingData }, { data: settingsData }] = await Promise.all([
     supabase
@@ -43,7 +45,7 @@ export default async function AdminBookingDetailPage({
       .select("*, car:cars(*), customer:customers(*)")
       .eq("id", id)
       .maybeSingle(),
-    supabase.from("settings").select("*").eq("id", 1).single(),
+    supabase.from("settings").select("*").eq("organization_id", orgId).single(),
   ]);
 
   if (!bookingData) notFound();

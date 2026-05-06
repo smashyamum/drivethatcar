@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrgId } from "@/lib/tenant";
 import { LEAD_STATUS_LABEL, type Customer, type LeadStatus } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
@@ -24,12 +25,14 @@ export async function GET() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const orgId = await getActiveOrgId();
 
   const { data, error } = await supabase
     .from("customers")
     .select(
       "*, bookings(id, start_at, status), interested_car:cars!customers_interested_car_id_fkey(year, make, model, variant)",
     )
+    .eq("organization_id", orgId)
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

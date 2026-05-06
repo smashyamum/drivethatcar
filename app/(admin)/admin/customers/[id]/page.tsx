@@ -12,6 +12,7 @@ import {
 import { DeleteLeadForm } from "@/components/admin/delete-lead-form";
 import { deleteLead } from "../actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrgId } from "@/lib/tenant";
 import { formatDateTimeInTz } from "@/lib/tz";
 import {
   LEAD_STATUS_LABEL,
@@ -68,6 +69,7 @@ export default async function AdminCustomerDetailPage({
   const { id } = await params;
   const { error: errorParam } = await searchParams;
   const supabase = await createSupabaseServerClient();
+  const orgId = await getActiveOrgId();
 
   const [
     { data: customerData },
@@ -87,7 +89,7 @@ export default async function AdminCustomerDetailPage({
       .select("*")
       .eq("customer_id", id)
       .order("created_at", { ascending: false }),
-    supabase.from("settings").select("*").eq("id", 1).single(),
+    supabase.from("settings").select("*").eq("organization_id", orgId).single(),
     supabase
       .from("customers")
       .select("interested_car:cars!customers_interested_car_id_fkey(id, year, make, model, variant)")

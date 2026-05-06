@@ -14,7 +14,16 @@ async function authedClient() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" as const };
-  return { supabase, userId: user.id };
+
+  const { data: membership } = await supabase
+    .from("memberships")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (!membership) return { error: "Not authenticated" as const };
+
+  return { supabase, userId: user.id, orgId: membership.organization_id as string };
 }
 
 function revalidate(id: string) {
@@ -38,6 +47,7 @@ export async function addNote(_prev: ActionState, formData: FormData): Promise<A
   if (!parsed.success) return { error: "Note can't be empty." };
 
   const { error } = await auth.supabase.from("customer_activities").insert({
+    organization_id: auth.orgId,
     customer_id: parsed.data.customerId,
     kind: "note",
     body: parsed.data.body,
@@ -65,6 +75,7 @@ export async function logCall(_prev: ActionState, formData: FormData): Promise<A
   if (!parsed.success) return { error: "Invalid input." };
 
   const { error } = await auth.supabase.from("customer_activities").insert({
+    organization_id: auth.orgId,
     customer_id: parsed.data.customerId,
     kind: "call",
     body: parsed.data.body ?? null,
@@ -110,6 +121,7 @@ export async function setLeadStatus(
   if (error) return { error: error.message };
 
   await auth.supabase.from("customer_activities").insert({
+    organization_id: auth.orgId,
     customer_id: parsed.data.customerId,
     kind: "status_change",
     metadata: { from: previous ?? null, to: parsed.data.status },
@@ -153,6 +165,7 @@ export async function setFollowUp(
   if (error) return { error: error.message };
 
   await auth.supabase.from("customer_activities").insert({
+    organization_id: auth.orgId,
     customer_id: parsed.data.customerId,
     kind: "follow_up_set",
     metadata: { at: iso },
@@ -182,6 +195,7 @@ export async function logWhatsApp(
   if (!parsed.success) return { error: "Message can't be empty." };
 
   const { error } = await auth.supabase.from("customer_activities").insert({
+    organization_id: auth.orgId,
     customer_id: parsed.data.customerId,
     kind: "whatsapp_sent",
     body: parsed.data.body,
@@ -229,6 +243,7 @@ export async function sendEmail(
   if (result.error) return { error: result.error };
 
   await auth.supabase.from("customer_activities").insert({
+    organization_id: auth.orgId,
     customer_id: parsed.data.customerId,
     kind: "email_sent",
     body: parsed.data.body,

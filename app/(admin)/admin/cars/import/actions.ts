@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrgId } from "@/lib/tenant";
 import { generateUniqueSlug } from "@/lib/slug";
 import { parseCsv } from "@/lib/csv";
 
@@ -209,6 +210,7 @@ export async function importCars(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
+  const orgId = await getActiveOrgId();
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -274,6 +276,7 @@ export async function importCars(
           const { data: existing } = await supabase
             .from("cars")
             .select("id")
+            .eq("organization_id", orgId)
             .eq("slug", candidate)
             .maybeSingle();
           return !!existing;
@@ -289,6 +292,7 @@ export async function importCars(
 
     const { price, ...rest } = data;
     const { error } = await supabase.from("cars").insert({
+      organization_id: orgId,
       ...rest,
       variant: optional(rest.variant),
       colour: optional(rest.colour),

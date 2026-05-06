@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrgId } from "@/lib/tenant";
 import { formatDateTimeInTz } from "@/lib/tz";
 import {
   LEAD_STATUS_LABEL,
@@ -26,6 +27,7 @@ type OverdueLead = Pick<Customer, "id" | "name" | "phone" | "lead_status" | "nex
 
 export default async function AdminDashboard() {
   const supabase = await createSupabaseServerClient();
+  const orgId = await getActiveOrgId();
   const now = new Date();
   const nowIso = now.toISOString();
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -46,32 +48,38 @@ export default async function AdminDashboard() {
     supabase
       .from("cars")
       .select("*", { count: "exact", head: true })
+      .eq("organization_id", orgId)
       .eq("status", "available"),
-    supabase.from("cars").select("*", { count: "exact", head: true }),
+    supabase.from("cars").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
     supabase
       .from("bookings")
       .select("*", { count: "exact", head: true })
+      .eq("organization_id", orgId)
       .eq("status", "confirmed")
       .gte("start_at", nowIso)
       .lte("start_at", in7d),
-    supabase.from("customers").select("*", { count: "exact", head: true }),
+    supabase.from("customers").select("*", { count: "exact", head: true }).eq("organization_id", orgId),
     supabase
       .from("customers")
       .select("*", { count: "exact", head: true })
+      .eq("organization_id", orgId)
       .eq("lead_status", "hot"),
     supabase
       .from("customers")
       .select("*", { count: "exact", head: true })
+      .eq("organization_id", orgId)
       .lt("next_follow_up_at", nowIso),
     supabase
       .from("customers")
       .select("*", { count: "exact", head: true })
+      .eq("organization_id", orgId)
       .gte("created_at", last30d),
     supabase
       .from("bookings")
       .select(
         "id, start_at, type, reference, car:cars(year, make, model, variant), customer:customers(name, phone)",
       )
+      .eq("organization_id", orgId)
       .eq("status", "confirmed")
       .gte("start_at", nowIso)
       .order("start_at", { ascending: true })
@@ -79,10 +87,11 @@ export default async function AdminDashboard() {
     supabase
       .from("customers")
       .select("id, name, phone, lead_status, next_follow_up_at")
+      .eq("organization_id", orgId)
       .lt("next_follow_up_at", nowIso)
       .order("next_follow_up_at", { ascending: true })
       .limit(5),
-    supabase.from("settings").select("*").eq("id", 1).single(),
+    supabase.from("settings").select("*").eq("organization_id", orgId).single(),
   ]);
 
   const tz = (settingsData as Settings | null)?.timezone ?? "Asia/Dubai";
