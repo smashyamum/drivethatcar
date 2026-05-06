@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOrgId } from "@/lib/tenant";
+import { getActiveOrg } from "@/lib/tenant";
 import { generateUniqueSlug } from "@/lib/slug";
 import { parseCsv } from "@/lib/csv";
 
@@ -210,7 +210,12 @@ export async function importCars(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
-  const orgId = await getActiveOrgId();
+  const { id: orgId, limits } = await getActiveOrg();
+  if (!limits.csvImport) {
+    return {
+      error: "CSV import is a Starter plan feature. Upgrade to import cars in bulk.",
+    };
+  }
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {

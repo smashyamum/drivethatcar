@@ -20,6 +20,7 @@ const PLANS = [
       "Automated email reminders",
       "Public booking page",
       "CSV car import",
+      "Solo owner (no team)",
     ],
   },
   {

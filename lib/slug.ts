@@ -81,3 +81,32 @@ export async function generateUniqueOrgSlug(
   }
   return candidate;
 }
+
+// Random lowercase alphanumeric slug. Confusable characters (0/o, 1/i/l) are
+// excluded so URLs are easy to read aloud or copy. 8 chars = ~3.4 trillion
+// combos; collisions effectively never happen but we still loop on retry.
+const RANDOM_SLUG_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
+const RANDOM_SLUG_LENGTH = 8;
+
+function randomOrgSlug(): string {
+  const arr = new Uint8Array(RANDOM_SLUG_LENGTH);
+  crypto.getRandomValues(arr);
+  let out = "";
+  for (let i = 0; i < RANDOM_SLUG_LENGTH; i++) {
+    out += RANDOM_SLUG_ALPHABET[arr[i] % RANDOM_SLUG_ALPHABET.length];
+  }
+  return out;
+}
+
+// Auto-generated public URL for new orgs. Pro plan can override this with a
+// custom slug from Settings; Free/Starter keep the random one.
+export async function generateRandomOrgSlug(
+  exists: (slug: string) => Promise<boolean>,
+): Promise<string> {
+  for (let i = 0; i < 100; i++) {
+    const candidate = randomOrgSlug();
+    if (RESERVED_ORG_SLUGS.has(candidate)) continue;
+    if (!(await exists(candidate))) return candidate;
+  }
+  throw new Error("Could not generate unique random org slug after 100 tries");
+}

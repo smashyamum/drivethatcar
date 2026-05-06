@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,15 +8,8 @@ import { Label } from "@/components/ui/label";
 import { WEEKDAYS, WEEKDAY_LABELS, type Weekday } from "@/lib/supabase/types";
 import { completeOnboarding, type OnboardingState } from "./actions";
 
-const SLUGIFY = (s: string) =>
-  s
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-
 const DEFAULT_OPEN_DAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat"];
+const TOTAL_STEPS = 4;
 
 function FinishButton() {
   const { pending } = useFormStatus();
@@ -29,30 +22,16 @@ function FinishButton() {
 
 export function OnboardingForm({
   initialBusinessName,
-  initialSuggestedSlug,
   contactEmail,
-  publicHostLabel,
 }: {
   initialBusinessName: string;
-  initialSuggestedSlug: string;
   contactEmail: string;
-  publicHostLabel: string;
 }) {
   const [state, formAction] = useActionState<OnboardingState, FormData>(
     completeOnboarding,
     {},
   );
   const [businessName, setBusinessName] = useState(initialBusinessName);
-  const [slug, setSlug] = useState(initialSuggestedSlug);
-  const [slugTouched, setSlugTouched] = useState(false);
-
-  // Auto-derive slug from business name until the user types in the slug field.
-  useEffect(() => {
-    if (!slugTouched) {
-      const auto = SLUGIFY(businessName);
-      if (auto) setSlug(auto);
-    }
-  }, [businessName, slugTouched]);
 
   return (
     <form action={formAction} className="flex flex-col gap-8">
@@ -82,38 +61,6 @@ export function OnboardingForm({
 
       <Section
         step={2}
-        title="Choose your public URL"
-        description="This is the address you'll share with customers to browse your stock and book viewings."
-      >
-        <Field label="Your URL" htmlFor="slug">
-          <div className="flex items-center gap-1 rounded-md border border-border bg-bg-subtle px-3 focus-within:bg-bg">
-            <span className="select-none text-sm text-fg-muted">{publicHostLabel}/d/</span>
-            <input
-              id="slug"
-              name="slug"
-              type="text"
-              value={slug}
-              onChange={(e) => {
-                setSlugTouched(true);
-                setSlug(SLUGIFY(e.target.value));
-              }}
-              required
-              minLength={3}
-              maxLength={60}
-              className="h-9 flex-1 bg-transparent text-sm outline-none"
-            />
-          </div>
-          {state.fieldErrors?.slug && (
-            <p className="mt-1 text-xs text-red-700">{state.fieldErrors.slug}</p>
-          )}
-          <p className="mt-1 text-xs text-fg-muted">
-            Lowercase letters, numbers and hyphens only.
-          </p>
-        </Field>
-      </Section>
-
-      <Section
-        step={3}
         title="Contact + timezone"
         description="Used on booking emails and the public booking page."
       >
@@ -156,7 +103,7 @@ export function OnboardingForm({
       </Section>
 
       <Section
-        step={4}
+        step={3}
         title="Working hours"
         description="When customers can book viewings. You can fine-tune per-day later in Settings."
       >
@@ -210,7 +157,7 @@ export function OnboardingForm({
       </Section>
 
       <Section
-        step={5}
+        step={4}
         title="Add your first car (optional)"
         description="Skip this if you're not ready — you can add cars anytime from the dashboard."
       >
@@ -328,7 +275,7 @@ function Section({
     <section className="flex flex-col gap-4 border-t border-border pt-8 first:border-t-0 first:pt-0">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
-          Step {step} of 5
+          Step {step} of {TOTAL_STEPS}
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight">{title}</h2>
         <p className="mt-1 text-sm text-fg-muted">{description}</p>

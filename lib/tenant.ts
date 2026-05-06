@@ -2,10 +2,18 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "./supabase/server";
+import { getPlanLimits, type Plan, type PlanLimits } from "./plan";
 import type { Role } from "./supabase/types";
 
 export type ActiveMembership = {
   orgId: string;
+  role: Role;
+};
+
+export type ActiveOrg = {
+  id: string;
+  plan: Plan;
+  limits: PlanLimits;
   role: Role;
 };
 
@@ -45,3 +53,17 @@ export async function getActiveOrgId(): Promise<string> {
   const { orgId } = await getActiveMembership();
   return orgId;
 }
+
+// Loads the org row + computes the plan limits. Cached per-request so
+// multiple gates in the same request don't repeatedly hit the DB.
+export const getActiveOrg = cache(async (): Promise<ActiveOrg> => {
+  const { orgId, role } = await getActiveMembership();
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("organizations")
+    .select("id, plan")
+    .eq("id", orgId)
+    .maybeSingle();
+  const plan = ((data?.plan as Plan | undefined) ?? "free") as Plan;
+  return { id: orgId, plan, limits: getPlanLimits(plan), role };
+});

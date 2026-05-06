@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOrgId } from "@/lib/tenant";
+import { getActiveOrg, getActiveOrgId } from "@/lib/tenant";
 import { generateUniqueSlug, isValidSlug } from "@/lib/slug";
 import { sendCancellationEmail } from "@/lib/email/booking-emails";
 import type { CarStatus } from "@/lib/supabase/types";
@@ -97,7 +97,19 @@ export async function createCar(_prev: CarFormState, formData: FormData): Promis
   }
 
   const supabase = await createSupabaseServerClient();
-  const orgId = await getActiveOrgId();
+  const { id: orgId, limits, plan } = await getActiveOrg();
+
+  // Plan-level cap on the number of cars an org can list.
+  const { count: existingCarCount } = await supabase
+    .from("cars")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  if ((existingCarCount ?? 0) >= limits.cars) {
+    const planLabel = plan === "free" ? "Free" : "Starter";
+    return {
+      error: `${planLabel} plan is limited to ${limits.cars} cars. Upgrade your plan to add more.`,
+    };
+  }
   const { price_pounds, slug: providedSlug, ...rest } = parsed.data;
 
   let slug: string;

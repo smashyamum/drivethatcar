@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOrgId } from "@/lib/tenant";
+import { getActiveOrg } from "@/lib/tenant";
+import { isPro } from "@/lib/plan";
 import { formatDateTimeInTz } from "@/lib/tz";
 import {
   LEAD_STATUS_LABEL,
@@ -27,7 +28,8 @@ type OverdueLead = Pick<Customer, "id" | "name" | "phone" | "lead_status" | "nex
 
 export default async function AdminDashboard() {
   const supabase = await createSupabaseServerClient();
-  const orgId = await getActiveOrgId();
+  const { id: orgId, plan } = await getActiveOrg();
+  const proAccess = isPro(plan);
   const now = new Date();
   const nowIso = now.toISOString();
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -216,6 +218,8 @@ export default async function AdminDashboard() {
         </Card>
       </div>
 
+      <AnalyticsTeaser proAccess={proAccess} />
+
       <div>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">
           Quick actions
@@ -269,5 +273,60 @@ function QuickLink({ href, label }: { href: string; label: string }) {
     >
       {label}
     </Link>
+  );
+}
+
+function AnalyticsTeaser({ proAccess }: { proAccess: boolean }) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">
+          Analytics
+        </h2>
+        {!proAccess && (
+          <span className="rounded-full bg-fg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-bg">
+            Pro
+          </span>
+        )}
+      </div>
+      <div className="relative mt-3 overflow-hidden rounded-[12px] border border-border bg-bg">
+        {/* Sample analytics — gets blurred for non-Pro plans. */}
+        <div
+          className={`grid grid-cols-2 gap-4 p-6 sm:grid-cols-4 ${proAccess ? "" : "pointer-events-none select-none blur-[6px]"}`}
+        >
+          <TeaserStat label="Booking → sale" value="42%" sub="Last 30 days" />
+          <TeaserStat label="Avg lead response" value="3.4h" sub="Time to first contact" />
+          <TeaserStat label="Top performer" value="Sarah K." sub="12 bookings · 5 sales" />
+          <TeaserStat label="Hottest car" value="Cayenne GTS" sub="8 viewings booked" />
+        </div>
+        {!proAccess && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-bg/30 p-6 text-center backdrop-blur-[2px]">
+            <p className="text-base font-semibold">Unlock sales analytics & leaderboards</p>
+            <p className="max-w-md text-sm text-fg-muted">
+              See conversion rates, response times, top performers and the cars
+              driving the most bookings — all included with Pro.
+            </p>
+            <Link
+              href="/admin/settings/billing"
+              className="inline-flex items-center justify-center rounded-md bg-fg px-4 py-2 text-sm font-semibold text-bg hover:opacity-90"
+            >
+              Upgrade to Pro
+            </Link>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TeaserStat({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-0.5 text-xs text-fg-muted">{sub}</p>
+    </div>
   );
 }

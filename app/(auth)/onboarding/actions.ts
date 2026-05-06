@@ -4,12 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
-import {
-  generateUniqueOrgSlug,
-  generateUniqueSlug,
-  isValidSlug,
-  RESERVED_ORG_SLUGS,
-} from "@/lib/slug";
+import { generateRandomOrgSlug, generateUniqueSlug } from "@/lib/slug";
 import { WEEKDAYS, type Weekday } from "@/lib/supabase/types";
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -29,7 +24,6 @@ const CarSchema = z.object({
 
 const OnboardingSchema = z.object({
   business_name: z.string().trim().min(2).max(120),
-  slug: z.string().trim().min(3).max(60),
   timezone: z.string().trim().min(1),
   contact_phone: z.string().trim().min(4).max(40),
   open_days: z.array(z.enum(WEEKDAYS as unknown as [Weekday, ...Weekday[]])).min(1),
@@ -58,7 +52,6 @@ export async function completeOnboarding(
 
   const parsed = OnboardingSchema.safeParse({
     business_name: formData.get("business_name"),
-    slug: formData.get("slug"),
     timezone: formData.get("timezone") || "Asia/Dubai",
     contact_phone: formData.get("contact_phone"),
     open_days: openDays,
@@ -117,18 +110,6 @@ export async function completeOnboarding(
     return { fieldErrors: { open_end: "End time must be after start time" } };
   }
 
-  if (!isValidSlug(data.slug)) {
-    return {
-      fieldErrors: {
-        slug: "Use lowercase letters, numbers and hyphens only (3+ chars).",
-      },
-    };
-  }
-
-  if (RESERVED_ORG_SLUGS.has(data.slug)) {
-    return { fieldErrors: { slug: "This URL is reserved — please pick another." } };
-  }
-
   // Already a member of an org? Don't double-create.
   const { data: existingMembership } = await supabase
     .from("memberships")
@@ -138,30 +119,21 @@ export async function completeOnboarding(
     .maybeSingle();
   if (existingMembership) redirect("/admin");
 
-  // Service client for slug collision checks: the new user has no membership
-  // yet, so RLS hides existing org rows from their session — meaning the
-  // collision check would always say "free" and the insert would crash on the
-  // unique constraint. Use the service client to bypass RLS for this read.
+  // Service client used for both the slug collision check and the inserts.
+  // RLS hides existing rows from a brand-new user (they have no membership
+  // yet) so a user-client collision check would always say "free" and the
+  // insert would crash on organizations_slug_key.
   const service = createSupabaseServiceClient();
 
-  // Slug uniqueness — fall back to auto-generation on collision rather than
-  // erroring, since the user might be in the middle of typing.
-  let slug = data.slug;
-  const { data: slugTaken } = await service
-    .from("organizations")
-    .select("id")
-    .eq("slug", slug)
-    .maybeSingle();
-  if (slugTaken) {
-    slug = await generateUniqueOrgSlug(data.business_name, async (candidate) => {
-      const { data: row } = await service
-        .from("organizations")
-        .select("id")
-        .eq("slug", candidate)
-        .maybeSingle();
-      return !!row;
-    });
-  }
+  // Auto-generated random slug — Pro plan can change this from Settings later.
+  const slug = await generateRandomOrgSlug(async (candidate) => {
+    const { data: row } = await service
+      .from("organizations")
+      .select("id")
+      .eq("slug", candidate)
+      .maybeSingle();
+    return !!row;
+  });
 
   // Build working_hours: single window [open_start, open_end] on chosen days.
   const window = { start: data.open_start, end: data.open_end };
