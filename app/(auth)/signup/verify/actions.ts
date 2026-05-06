@@ -10,7 +10,12 @@ const VerifySchema = z.object({
   token: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code from your email"),
 });
 
+const ResendSchema = z.object({
+  email: z.string().trim().email(),
+});
+
 export type VerifyState = { error?: string };
+export type ResendState = { sent?: boolean; error?: string };
 
 export async function verifyCode(
   _prev: VerifyState,
@@ -43,4 +48,29 @@ export async function verifyCode(
 
   const membership = await getActiveMembershipOrNull();
   redirect(membership ? "/admin" : "/onboarding");
+}
+
+export async function resendCode(
+  _prev: ResendState,
+  formData: FormData,
+): Promise<ResendState> {
+  const parsed = ResendSchema.safeParse({ email: formData.get("email") });
+  if (!parsed.success) {
+    return { error: "Missing email address." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email: parsed.data.email,
+  });
+
+  if (error) {
+    if (error.message.toLowerCase().includes("rate limit")) {
+      return { error: "Please wait a minute before requesting another code." };
+    }
+    return { error: error.message };
+  }
+
+  return { sent: true };
 }
