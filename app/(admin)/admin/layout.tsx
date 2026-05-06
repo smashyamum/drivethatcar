@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveMembershipOrNull } from "@/lib/tenant";
 import { signOut } from "../login/actions";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -10,6 +11,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  // Authenticated but no org yet — they verified email but haven't finished
+  // onboarding. Send them through it.
+  const membership = await getActiveMembershipOrNull();
+  if (!membership) redirect("/onboarding");
 
   return (
     <div className="min-h-screen bg-bg-subtle">
