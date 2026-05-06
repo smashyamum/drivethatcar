@@ -10,30 +10,33 @@ const PLANS = [
     id: "starter",
     name: "Starter",
     desc: "Perfect for solo dealers.",
-    monthly: 149,
-    yearly: 99,
+    monthly: 14.99,
+    yearly: 9.99,
+    yearlyTotal: 119.88,
     highlighted: false,
     features: [
-      "Up to 50 cars listed",
+      "Up to 10 cars listed",
       "Unlimited bookings & customers",
       "Automated email reminders",
       "Public booking page",
+      "CSV car import",
     ],
   },
   {
     id: "pro",
     name: "Pro",
     desc: "For growing dealerships.",
-    monthly: 299,
-    yearly: 199,
+    monthly: 29.99,
+    yearly: 19.99,
+    yearlyTotal: 239.88,
+    highlighted: true,
     features: [
       "Unlimited cars",
       "Everything in Starter",
-      "Team members & role access",
+      "Team members & roles (up to 5)",
       "Sales analytics & leaderboard",
       "Priority support",
     ],
-    highlighted: true,
   },
 ] as const;
 
@@ -102,12 +105,12 @@ export function PlanPicker() {
                 <p className="mt-0.5 text-sm text-fg-muted">{plan.desc}</p>
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-bold">AED {price}</span>
+                <span className="text-3xl font-bold">${price}</span>
                 <span className="text-sm text-fg-muted">/mo</span>
               </div>
               {billing === "yearly" && (
                 <p className="text-xs text-fg-muted">
-                  Billed as AED {price * 12} / year
+                  Billed as ${plan.yearlyTotal} / year
                 </p>
               )}
               <ul className="flex flex-col gap-2">
