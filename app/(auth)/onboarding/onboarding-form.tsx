@@ -211,8 +211,8 @@ export function OnboardingForm({
 
       <Section
         step={5}
-        title="Add your first car"
-        description="Get your first listing live. You can add more cars and edit details from the dashboard."
+        title="Add your first car (optional)"
+        description="Skip this if you're not ready — you can add cars anytime from the dashboard."
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Make" htmlFor="car_make">
@@ -221,7 +221,6 @@ export function OnboardingForm({
               name="car_make"
               type="text"
               placeholder="Toyota"
-              required
             />
             {state.fieldErrors?.car_make && (
               <p className="mt-1 text-xs text-red-700">{state.fieldErrors.car_make}</p>
@@ -233,7 +232,6 @@ export function OnboardingForm({
               name="car_model"
               type="text"
               placeholder="Land Cruiser"
-              required
             />
             {state.fieldErrors?.car_model && (
               <p className="mt-1 text-xs text-red-700">{state.fieldErrors.car_model}</p>
@@ -246,8 +244,6 @@ export function OnboardingForm({
               type="number"
               min={1900}
               max={2100}
-              defaultValue={new Date().getFullYear()}
-              required
             />
             {state.fieldErrors?.car_year && (
               <p className="mt-1 text-xs text-red-700">{state.fieldErrors.car_year}</p>
@@ -261,13 +257,12 @@ export function OnboardingForm({
               min={0}
               step={1}
               placeholder="85000"
-              required
             />
             {state.fieldErrors?.car_price_aed && (
               <p className="mt-1 text-xs text-red-700">{state.fieldErrors.car_price_aed}</p>
             )}
           </Field>
-          <Field label="Mileage (km) — optional" htmlFor="car_mileage">
+          <Field label="Mileage (km)" htmlFor="car_mileage">
             <Input
               id="car_mileage"
               name="car_mileage"
@@ -277,7 +272,7 @@ export function OnboardingForm({
               placeholder="12000"
             />
           </Field>
-          <Field label="Colour — optional" htmlFor="car_colour">
+          <Field label="Colour" htmlFor="car_colour">
             <Input
               id="car_colour"
               name="car_colour"
@@ -285,7 +280,7 @@ export function OnboardingForm({
               placeholder="Pearl White"
             />
           </Field>
-          <Field label="Transmission — optional" htmlFor="car_transmission">
+          <Field label="Transmission" htmlFor="car_transmission">
             <select
               id="car_transmission"
               name="car_transmission"
@@ -297,7 +292,7 @@ export function OnboardingForm({
               <option value="semi_auto">Semi-auto</option>
             </select>
           </Field>
-          <Field label="Fuel type — optional" htmlFor="car_fuel_type">
+          <Field label="Fuel type" htmlFor="car_fuel_type">
             <select
               id="car_fuel_type"
               name="car_fuel_type"

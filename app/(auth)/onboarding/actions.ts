@@ -14,15 +14,17 @@ import { WEEKDAYS, type Weekday } from "@/lib/supabase/types";
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+// All car fields are optional — users can skip step 5 entirely. If make is
+// filled in, model/year/price become required; otherwise we skip the insert.
 const CarSchema = z.object({
-  car_make: z.string().trim().min(1, "Make is required").max(80),
-  car_model: z.string().trim().min(1, "Model is required").max(80),
-  car_year: z.coerce.number().int().min(1900).max(2100),
-  car_price_aed: z.coerce.number().nonnegative(),
-  car_mileage: z.string().trim().transform((v) => (v.length === 0 ? null : Number(v))).pipe(z.number().int().nonnegative().nullable()),
-  car_colour: z.string().trim().transform((v) => (v.length === 0 ? null : v)).nullable(),
-  car_transmission: z.string().trim().transform((v) => (v.length === 0 ? null : v)).nullable(),
-  car_fuel_type: z.string().trim().transform((v) => (v.length === 0 ? null : v)).nullable(),
+  car_make: z.string().trim().max(80).optional().transform((v) => v && v.length > 0 ? v : null),
+  car_model: z.string().trim().max(80).optional().transform((v) => v && v.length > 0 ? v : null),
+  car_year: z.string().trim().optional().transform((v) => v && v.length > 0 ? Number(v) : null).pipe(z.number().int().min(1900).max(2100).nullable()),
+  car_price_aed: z.string().trim().optional().transform((v) => v && v.length > 0 ? Number(v) : null).pipe(z.number().nonnegative().nullable()),
+  car_mileage: z.string().trim().optional().transform((v) => v && v.length > 0 ? Number(v) : null).pipe(z.number().int().nonnegative().nullable()),
+  car_colour: z.string().trim().optional().transform((v) => v && v.length > 0 ? v : null),
+  car_transmission: z.string().trim().optional().transform((v) => v && v.length > 0 ? v : null),
+  car_fuel_type: z.string().trim().optional().transform((v) => v && v.length > 0 ? v : null),
 });
 
 const OnboardingSchema = z.object({
@@ -90,6 +92,16 @@ export async function completeOnboarding(
     return { fieldErrors: fe };
   }
 
+  // If user filled in make, require model + year + price too.
+  const car = carParsed.data;
+  if (car.car_make) {
+    const carFE: Record<string, string> = {};
+    if (!car.car_model) carFE.car_model = "Required when adding a car";
+    if (!car.car_year) carFE.car_year = "Required when adding a car";
+    if (car.car_price_aed === null) carFE.car_price_aed = "Required when adding a car";
+    if (Object.keys(carFE).length > 0) return { fieldErrors: carFE };
+  }
+
   if (!parsed.success) {
     const fe: Record<string, string> = {};
     for (const issue of parsed.error.issues) {
@@ -126,17 +138,23 @@ export async function completeOnboarding(
     .maybeSingle();
   if (existingMembership) redirect("/admin");
 
+  // Service client for slug collision checks: the new user has no membership
+  // yet, so RLS hides existing org rows from their session — meaning the
+  // collision check would always say "free" and the insert would crash on the
+  // unique constraint. Use the service client to bypass RLS for this read.
+  const service = createSupabaseServiceClient();
+
   // Slug uniqueness — fall back to auto-generation on collision rather than
   // erroring, since the user might be in the middle of typing.
   let slug = data.slug;
-  const { data: slugTaken } = await supabase
+  const { data: slugTaken } = await service
     .from("organizations")
     .select("id")
     .eq("slug", slug)
     .maybeSingle();
   if (slugTaken) {
     slug = await generateUniqueOrgSlug(data.business_name, async (candidate) => {
-      const { data: row } = await supabase
+      const { data: row } = await service
         .from("organizations")
         .select("id")
         .eq("slug", candidate)
@@ -153,10 +171,9 @@ export async function completeOnboarding(
 
   const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  // Use the service client so we sidestep RLS bootstrap chicken-and-egg
-  // (the user has no membership yet, so RLS would block them inserting
-  // into organizations / memberships / settings).
-  const service = createSupabaseServiceClient();
+  // (service client already created above for the slug collision check —
+  // we reuse it for the org / membership / settings inserts since the new
+  // user has no RLS membership yet.)
 
   const { data: org, error: orgErr } = await service
     .from("organizations")
@@ -196,34 +213,36 @@ export async function completeOnboarding(
     return { error: setErr.message };
   }
 
-  // Insert the first car using the service client (user has no RLS membership cookie yet).
-  const car = carParsed.data;
-  const carSlug = await generateUniqueSlug(
-    { year: car.car_year, make: car.car_make, model: car.car_model },
-    async (candidate) => {
-      const { data: row } = await service
-        .from("cars")
-        .select("id")
-        .eq("organization_id", org.id)
-        .eq("slug", candidate)
-        .maybeSingle();
-      return !!row;
-    },
-  );
+  // Insert the first car if the user provided one. Step 5 is optional —
+  // they can add cars later from /admin/cars.
+  if (car.car_make && car.car_model && car.car_year && car.car_price_aed !== null) {
+    const carSlug = await generateUniqueSlug(
+      { year: car.car_year, make: car.car_make, model: car.car_model },
+      async (candidate) => {
+        const { data: row } = await service
+          .from("cars")
+          .select("id")
+          .eq("organization_id", org.id)
+          .eq("slug", candidate)
+          .maybeSingle();
+        return !!row;
+      },
+    );
 
-  await service.from("cars").insert({
-    organization_id: org.id,
-    slug: carSlug,
-    make: car.car_make,
-    model: car.car_model,
-    year: car.car_year,
-    price_pence: Math.round(car.car_price_aed * 100),
-    mileage: car.car_mileage,
-    colour: car.car_colour,
-    transmission: car.car_transmission,
-    fuel_type: car.car_fuel_type,
-    status: "available",
-  });
+    await service.from("cars").insert({
+      organization_id: org.id,
+      slug: carSlug,
+      make: car.car_make,
+      model: car.car_model,
+      year: car.car_year,
+      price_pence: Math.round(car.car_price_aed * 100),
+      mileage: car.car_mileage,
+      colour: car.car_colour,
+      transmission: car.car_transmission,
+      fuel_type: car.car_fuel_type,
+      status: "available",
+    });
+  }
 
   redirect("/onboarding/choose-plan");
 }

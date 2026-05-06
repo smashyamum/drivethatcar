@@ -68,5 +68,5 @@ export async function signUp(
     redirect("/onboarding");
   }
 
-  redirect(`/signup/check-email?email=${encodeURIComponent(parsed.data.email)}`);
+  redirect(`/signup/verify?email=${encodeURIComponent(parsed.data.email)}`);
 }
