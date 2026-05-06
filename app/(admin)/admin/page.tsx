@@ -289,7 +289,7 @@ function AnalyticsTeaser({ proAccess }: { proAccess: boolean }) {
           </span>
         )}
       </div>
-      <div className="relative mt-3 overflow-hidden rounded-[12px] border border-border bg-bg">
+      <div className="relative mt-3 min-h-[280px] overflow-hidden rounded-[12px] border border-border bg-bg">
         {/* Sample analytics — gets blurred for non-Pro plans. */}
         <div
           className={`grid grid-cols-2 gap-4 p-6 sm:grid-cols-4 ${proAccess ? "" : "pointer-events-none select-none blur-[6px]"}`}
@@ -300,15 +300,17 @@ function AnalyticsTeaser({ proAccess }: { proAccess: boolean }) {
           <TeaserStat label="Hottest car" value="Cayenne GTS" sub="8 viewings booked" />
         </div>
         {!proAccess && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-bg/30 p-6 text-center backdrop-blur-[2px]">
-            <p className="text-base font-semibold">Unlock sales analytics & leaderboards</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-bg/40 px-6 py-10 text-center backdrop-blur-[2px]">
+            <p className="text-lg font-semibold tracking-tight">
+              Unlock sales analytics &amp; leaderboards
+            </p>
             <p className="max-w-md text-sm text-fg-muted">
               See conversion rates, response times, top performers and the cars
               driving the most bookings — all included with Pro.
             </p>
             <Link
               href="/admin/settings/billing"
-              className="inline-flex items-center justify-center rounded-md bg-fg px-4 py-2 text-sm font-semibold text-bg hover:opacity-90"
+              className="mt-1 inline-flex items-center justify-center rounded-md bg-fg px-5 py-2.5 text-sm font-semibold text-bg shadow-sm hover:opacity-90"
             >
               Upgrade to Pro
             </Link>
