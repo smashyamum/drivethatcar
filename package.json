@@ -23,6 +23,7 @@
     "react-email": "^6.0.5",
     "resend": "^6.12.2",
     "slugify": "^1.6.9",
+    "stripe": "^22.1.0",
     "tailwind-merge": "^3.5.0",
     "zod": "^4.4.3"
   },
