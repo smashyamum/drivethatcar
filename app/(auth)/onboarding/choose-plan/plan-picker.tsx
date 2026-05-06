@@ -33,6 +33,7 @@ const PLANS = [
     features: [
       "Unlimited cars",
       "Everything in Starter",
+      "Custom booking page address",
       "Team members & roles (up to 5)",
       "Sales analytics & leaderboard",
       "Priority support",
