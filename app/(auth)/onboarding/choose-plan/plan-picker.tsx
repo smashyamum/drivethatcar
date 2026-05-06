@@ -134,6 +134,16 @@ export function PlanPicker() {
       <p className="text-center text-xs text-fg-muted">
         No credit card needed for the free trial. You&apos;ll choose billing after 7 days.
       </p>
+
+      <form action={startTrial} className="flex justify-center">
+        <input type="hidden" name="plan" value="free" />
+        <button
+          type="submit"
+          className="text-center text-xs text-fg-muted underline-offset-4 hover:text-fg hover:underline"
+        >
+          Continue with free account →
+        </button>
+      </form>
     </div>
   );
 }
