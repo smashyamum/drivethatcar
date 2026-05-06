@@ -6,12 +6,24 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import {
   generateUniqueOrgSlug,
+  generateUniqueSlug,
   isValidSlug,
   RESERVED_ORG_SLUGS,
 } from "@/lib/slug";
 import { WEEKDAYS, type Weekday } from "@/lib/supabase/types";
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const CarSchema = z.object({
+  car_make: z.string().trim().min(1, "Make is required").max(80),
+  car_model: z.string().trim().min(1, "Model is required").max(80),
+  car_year: z.coerce.number().int().min(1900).max(2100),
+  car_price_aed: z.coerce.number().nonnegative(),
+  car_mileage: z.string().trim().transform((v) => (v.length === 0 ? null : Number(v))).pipe(z.number().int().nonnegative().nullable()),
+  car_colour: z.string().trim().transform((v) => (v.length === 0 ? null : v)).nullable(),
+  car_transmission: z.string().trim().transform((v) => (v.length === 0 ? null : v)).nullable(),
+  car_fuel_type: z.string().trim().transform((v) => (v.length === 0 ? null : v)).nullable(),
+});
 
 const OnboardingSchema = z.object({
   business_name: z.string().trim().min(2).max(120),
@@ -51,6 +63,32 @@ export async function completeOnboarding(
     open_start: formData.get("open_start") || "09:00",
     open_end: formData.get("open_end") || "19:00",
   });
+
+  const carParsed = CarSchema.safeParse({
+    car_make: formData.get("car_make") ?? "",
+    car_model: formData.get("car_model") ?? "",
+    car_year: formData.get("car_year") ?? new Date().getFullYear(),
+    car_price_aed: formData.get("car_price_aed") ?? "0",
+    car_mileage: formData.get("car_mileage") ?? "",
+    car_colour: formData.get("car_colour") ?? "",
+    car_transmission: formData.get("car_transmission") ?? "",
+    car_fuel_type: formData.get("car_fuel_type") ?? "",
+  });
+
+  if (!carParsed.success) {
+    const fe: Record<string, string> = {};
+    for (const issue of carParsed.error.issues) {
+      const path = issue.path.join(".");
+      if (!fe[path]) fe[path] = issue.message;
+    }
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues) {
+        const path = issue.path.join(".");
+        if (!fe[path]) fe[path] = issue.message;
+      }
+    }
+    return { fieldErrors: fe };
+  }
 
   if (!parsed.success) {
     const fe: Record<string, string> = {};
@@ -158,5 +196,34 @@ export async function completeOnboarding(
     return { error: setErr.message };
   }
 
-  redirect("/admin");
+  // Insert the first car using the service client (user has no RLS membership cookie yet).
+  const car = carParsed.data;
+  const carSlug = await generateUniqueSlug(
+    { year: car.car_year, make: car.car_make, model: car.car_model },
+    async (candidate) => {
+      const { data: row } = await service
+        .from("cars")
+        .select("id")
+        .eq("organization_id", org.id)
+        .eq("slug", candidate)
+        .maybeSingle();
+      return !!row;
+    },
+  );
+
+  await service.from("cars").insert({
+    organization_id: org.id,
+    slug: carSlug,
+    make: car.car_make,
+    model: car.car_model,
+    year: car.car_year,
+    price_pence: Math.round(car.car_price_aed * 100),
+    mileage: car.car_mileage,
+    colour: car.car_colour,
+    transmission: car.car_transmission,
+    fuel_type: car.car_fuel_type,
+    status: "available",
+  });
+
+  redirect("/onboarding/choose-plan");
 }

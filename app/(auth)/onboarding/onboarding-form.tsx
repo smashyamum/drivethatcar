@@ -22,7 +22,7 @@ function FinishButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? "Setting up your account…" : "Finish setup → enter dashboard"}
+      {pending ? "Setting up your account…" : "Continue → choose your plan"}
     </Button>
   );
 }
@@ -211,21 +211,105 @@ export function OnboardingForm({
 
       <Section
         step={5}
-        title="Pick a plan"
-        description="No credit card needed. We'll remind you before your trial ends."
+        title="Add your first car"
+        description="Get your first listing live. You can add more cars and edit details from the dashboard."
       >
-        <div className="rounded-[12px] border-2 border-fg bg-bg p-5">
-          <div className="flex items-baseline justify-between">
-            <h3 className="text-base font-semibold">7-day free trial</h3>
-            <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-              Selected
-            </span>
-          </div>
-          <p className="mt-1 text-sm text-fg-muted">
-            Full access to everything: unlimited cars, customers, bookings,
-            email reminders. No credit card. After 7 days you can choose to
-            continue on a paid plan.
-          </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Make" htmlFor="car_make">
+            <Input
+              id="car_make"
+              name="car_make"
+              type="text"
+              placeholder="Toyota"
+              required
+            />
+            {state.fieldErrors?.car_make && (
+              <p className="mt-1 text-xs text-red-700">{state.fieldErrors.car_make}</p>
+            )}
+          </Field>
+          <Field label="Model" htmlFor="car_model">
+            <Input
+              id="car_model"
+              name="car_model"
+              type="text"
+              placeholder="Land Cruiser"
+              required
+            />
+            {state.fieldErrors?.car_model && (
+              <p className="mt-1 text-xs text-red-700">{state.fieldErrors.car_model}</p>
+            )}
+          </Field>
+          <Field label="Year" htmlFor="car_year">
+            <Input
+              id="car_year"
+              name="car_year"
+              type="number"
+              min={1900}
+              max={2100}
+              defaultValue={new Date().getFullYear()}
+              required
+            />
+            {state.fieldErrors?.car_year && (
+              <p className="mt-1 text-xs text-red-700">{state.fieldErrors.car_year}</p>
+            )}
+          </Field>
+          <Field label="Price (AED)" htmlFor="car_price_aed">
+            <Input
+              id="car_price_aed"
+              name="car_price_aed"
+              type="number"
+              min={0}
+              step={1}
+              placeholder="85000"
+              required
+            />
+            {state.fieldErrors?.car_price_aed && (
+              <p className="mt-1 text-xs text-red-700">{state.fieldErrors.car_price_aed}</p>
+            )}
+          </Field>
+          <Field label="Mileage (km) — optional" htmlFor="car_mileage">
+            <Input
+              id="car_mileage"
+              name="car_mileage"
+              type="number"
+              min={0}
+              step={1}
+              placeholder="12000"
+            />
+          </Field>
+          <Field label="Colour — optional" htmlFor="car_colour">
+            <Input
+              id="car_colour"
+              name="car_colour"
+              type="text"
+              placeholder="Pearl White"
+            />
+          </Field>
+          <Field label="Transmission — optional" htmlFor="car_transmission">
+            <select
+              id="car_transmission"
+              name="car_transmission"
+              className="h-9 w-full rounded-md border border-border bg-bg px-3 text-sm text-fg outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">— select —</option>
+              <option value="automatic">Automatic</option>
+              <option value="manual">Manual</option>
+              <option value="semi_auto">Semi-auto</option>
+            </select>
+          </Field>
+          <Field label="Fuel type — optional" htmlFor="car_fuel_type">
+            <select
+              id="car_fuel_type"
+              name="car_fuel_type"
+              className="h-9 w-full rounded-md border border-border bg-bg px-3 text-sm text-fg outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">— select —</option>
+              <option value="petrol">Petrol</option>
+              <option value="diesel">Diesel</option>
+              <option value="hybrid">Hybrid</option>
+              <option value="electric">Electric</option>
+            </select>
+          </Field>
         </div>
       </Section>
 
