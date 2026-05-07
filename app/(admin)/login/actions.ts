@@ -33,7 +33,13 @@ export async function signIn(_prev: SignInState, formData: FormData): Promise<Si
     return { error: error.message };
   }
 
-  redirect(parsed.data.next?.startsWith("/admin") ? parsed.data.next : "/admin");
+  const next = parsed.data.next ?? "";
+  // Only allow same-origin paths to /admin or /accept-invite/<token> as a destination.
+  const safe =
+    next.startsWith("/admin") || next.startsWith("/accept-invite/")
+      ? next
+      : "/admin";
+  redirect(safe);
 }
 
 export async function signOut() {

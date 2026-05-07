@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOrgId } from "@/lib/tenant";
+import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { getActiveMembership, getActiveOrg, getActiveOrgId } from "@/lib/tenant";
+import { isValidSlug, RESERVED_ORG_SLUGS } from "@/lib/slug";
 import { REMINDER_OFFSET_PRESETS, WEEKDAYS } from "@/lib/supabase/types";
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -82,6 +84,64 @@ export async function saveSettings(
     .update(parsed.data)
     .eq("organization_id", orgId);
 
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Custom public-page slug — Pro-only.
+// ---------------------------------------------------------------------------
+
+export type SlugState = { error?: string; ok?: boolean };
+
+export async function updateOrgSlug(
+  _prev: SlugState,
+  formData: FormData,
+): Promise<SlugState> {
+  const { role } = await getActiveMembership();
+  if (role !== "owner" && role !== "admin") {
+    return { error: "Only owners or admins can change the public address." };
+  }
+
+  const org = await getActiveOrg();
+  if (!org.limits.customSlug) {
+    return { error: "Changing your public address is a Pro feature." };
+  }
+
+  const raw = String(formData.get("slug") ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (!isValidSlug(raw)) {
+    return {
+      error:
+        "Use 3–120 characters: lowercase letters, numbers and dashes only (e.g. my-motors).",
+    };
+  }
+  if (RESERVED_ORG_SLUGS.has(raw)) {
+    return { error: "That address is reserved — pick something else." };
+  }
+
+  // Service client because RLS on organizations restricts writes; we've
+  // already validated role + plan above.
+  const service = createSupabaseServiceClient();
+  const { data: clash } = await service
+    .from("organizations")
+    .select("id")
+    .eq("slug", raw)
+    .neq("id", org.id)
+    .maybeSingle();
+  if (clash) {
+    return { error: "That address is already taken — try another." };
+  }
+
+  const { error } = await service
+    .from("organizations")
+    .update({ slug: raw })
+    .eq("id", org.id);
   if (error) return { error: error.message };
 
   revalidatePath("/admin/settings");
