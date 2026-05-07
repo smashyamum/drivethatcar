@@ -28,6 +28,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               Car Booking · Admin
             </Link>
             <nav className="flex items-center gap-4 text-sm text-fg-muted">
+              <Link href="/admin" className="hover:text-fg">
+                Dashboard
+              </Link>
               <Link href="/admin/cars" className="hover:text-fg">
                 Cars
               </Link>
@@ -39,7 +42,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               </Link>
               {org.limits.analytics && (
                 <Link href="/admin/analytics" className="hover:text-fg">
-                  Analytics
+                  Team analytics
                 </Link>
               )}
               <Link href="/admin/settings" className="hover:text-fg">

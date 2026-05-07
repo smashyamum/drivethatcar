@@ -244,6 +244,7 @@ export async function sendEmail(
   if (!customer) return { error: "Customer not found." };
 
   const result = await sendCustomerEmail({
+    orgId: auth.orgId,
     to: customer.email,
     subject: parsed.data.subject,
     body: parsed.data.body,

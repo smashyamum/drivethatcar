@@ -11,7 +11,7 @@ import {
   Text,
 } from "@react-email/components";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
-import { DEFAULT_SENDER } from "./send";
+import { getEmailConfig } from "./config";
 import type { Settings } from "@/lib/supabase/types";
 
 let _resend: Resend | null = null;
@@ -24,6 +24,7 @@ function resend(): Resend {
 }
 
 type Args = {
+  orgId: string;
   to: string;
   subject: string;
   body: string;
@@ -31,26 +32,45 @@ type Args = {
 };
 
 export async function sendCustomerEmail({
+  orgId,
   to,
   subject,
   body,
   customerName,
-}: Args): Promise<{ id?: string; error?: string }> {
-  const supabase = createSupabaseServiceClient();
+}: Args): Promise<{ id?: string; error?: string; skipped?: boolean }> {
+  const cfg = await getEmailConfig(orgId);
+  if (!cfg.enabled) {
+    return {
+      skipped: true,
+      error:
+        cfg.reason === "free_plan"
+          ? "Customer emails aren't included on the Free plan. Upgrade to send."
+          : "Email sending is disabled for this account.",
+    };
+  }
 
-  const { data: settingsData } = await supabase.from("settings").select("*").eq("id", 1).single();
-  const settings = settingsData as Settings | null;
+  const supabase = createSupabaseServiceClient();
+  const { data: settingsData } = await supabase
+    .from("settings")
+    .select("business_name, contact_phone")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  const settings = settingsData as Pick<Settings, "business_name" | "contact_phone"> | null;
   const businessName = settings?.business_name ?? "Car Booking";
-  const from = settings?.resend_from_email
-    ? `${businessName} <${settings.resend_from_email}>`
-    : DEFAULT_SENDER;
 
   try {
     const { data, error } = await resend().emails.send({
-      from,
+      from: cfg.from,
       to,
       subject,
-      react: <CustomerEmail body={body} customerName={customerName} businessName={businessName} contactPhone={settings?.contact_phone ?? null} />,
+      react: (
+        <CustomerEmail
+          body={body}
+          customerName={customerName}
+          businessName={businessName}
+          contactPhone={settings?.contact_phone ?? null}
+        />
+      ),
     });
     if (error) return { error: error.message };
     return { id: data?.id };

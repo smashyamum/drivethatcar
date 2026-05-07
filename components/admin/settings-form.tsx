@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,8 @@ import {
 } from "@/lib/supabase/types";
 import { saveSettings, type SettingsState } from "@/app/(admin)/admin/settings/actions";
 
+type EmailTier = "none" | "shared" | "custom";
+
 function SaveButton() {
   const { pending } = useFormStatus();
   return (
@@ -23,7 +26,15 @@ function SaveButton() {
   );
 }
 
-export function SettingsForm({ initial }: { initial: Settings }) {
+export function SettingsForm({
+  initial,
+  emailTier,
+  platformSender,
+}: {
+  initial: Settings;
+  emailTier: EmailTier;
+  platformSender: string;
+}) {
   const [state, formAction] = useActionState<SettingsState, FormData>(saveSettings, {});
 
   return (
@@ -59,24 +70,78 @@ export function SettingsForm({ initial }: { initial: Settings }) {
       </section>
 
       <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">Email</h2>
-          <p className="text-sm text-fg-muted">
-            Sender for confirmation, reschedule, cancellation, and reminder emails. Leave blank to
-            send from <code className="font-mono text-[12px]">onboarding@resend.dev</code> (Resend
-            test sender — only delivers to your verified Resend account email). Once you verify a
-            domain in Resend, set it here as <code className="font-mono text-[12px]">bookings@yourdomain.com</code>.
-          </p>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Customer emails</h2>
+            <p className="text-sm text-fg-muted">
+              Sender for booking confirmations, reminders, cancellations and reschedule notices.
+            </p>
+          </div>
+          {emailTier === "custom" && (
+            <span className="rounded-full bg-fg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-bg">
+              Pro
+            </span>
+          )}
         </div>
-        <Field label="Sender email" htmlFor="resend_from_email">
-          <Input
-            id="resend_from_email"
-            name="resend_from_email"
-            type="email"
-            defaultValue={initial.resend_from_email ?? ""}
-            placeholder="bookings@yourdomain.com"
-          />
-        </Field>
+
+        {emailTier === "none" && (
+          <div className="flex flex-col gap-3 rounded-md border border-border bg-bg-subtle p-4 text-sm">
+            <p className="text-fg-muted">
+              Customer emails aren&rsquo;t included on the Free plan. Customers won&rsquo;t get
+              booking confirmations or reminders.
+            </p>
+            <div>
+              <Link
+                href="/admin/settings/billing"
+                className="inline-flex items-center justify-center rounded-md bg-fg px-3 py-1.5 text-xs font-semibold text-bg hover:opacity-90"
+              >
+                Upgrade to enable
+              </Link>
+            </div>
+            {/* Submit a blank value so server-side validation still passes. */}
+            <input type="hidden" name="resend_from_email" value="" />
+          </div>
+        )}
+
+        {emailTier === "shared" && (
+          <div className="flex flex-col gap-3 rounded-md border border-border bg-bg-subtle p-4 text-sm">
+            <p className="text-fg-muted">
+              Sent from{" "}
+              <code className="font-mono text-[12px] text-fg">{platformSender}</code> on the
+              Starter plan.
+            </p>
+            <p className="text-xs text-fg-muted">
+              Want emails to come from your own domain (e.g.{" "}
+              <code className="font-mono text-[12px]">bookings@yourdealership.com</code>)?{" "}
+              <Link
+                href="/admin/settings/billing"
+                className="font-medium text-fg hover:underline"
+              >
+                Upgrade to Pro
+              </Link>{" "}
+              to use a custom sender.
+            </p>
+            {/* Always submit blank so settings.resend_from_email stays unset on Starter. */}
+            <input type="hidden" name="resend_from_email" value="" />
+          </div>
+        )}
+
+        {emailTier === "custom" && (
+          <Field label="Sender email" htmlFor="resend_from_email">
+            <Input
+              id="resend_from_email"
+              name="resend_from_email"
+              type="email"
+              defaultValue={initial.resend_from_email ?? ""}
+              placeholder="bookings@yourdomain.com"
+            />
+            <p className="text-xs text-fg-muted">
+              Add your domain in <a href="https://resend.com/domains" target="_blank" rel="noreferrer" className="underline">Resend → Domains</a>{" "}
+              and verify the DNS records, then enter your sender address here. Leave blank to use
+              the platform default ({platformSender}).
+            </p>
+          </Field>
+        )}
       </section>
 
       <section className="flex flex-col gap-4">

@@ -19,6 +19,12 @@ export type PlanLimits = {
   team: boolean;
   customSlug: boolean;
   teamSeats: number;
+  /**
+   * 'none'   = no automated customer emails (Free)
+   * 'shared' = sent from the platform's default sender (Starter)
+   * 'custom' = dealer can send from their own verified domain (Pro / trial)
+   */
+  customerEmails: "none" | "shared" | "custom";
 };
 
 const UNLIMITED = 999_999;
@@ -33,6 +39,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     team: true,
     customSlug: true,
     teamSeats: UNLIMITED,
+    customerEmails: "custom",
   },
   free: {
     cars: 2,
@@ -43,6 +50,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     team: false,
     customSlug: false,
     teamSeats: 1,
+    customerEmails: "none",
   },
   starter_trial: {
     cars: 10,
@@ -53,6 +61,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     team: false,
     customSlug: false,
     teamSeats: 1,
+    customerEmails: "shared",
   },
   starter: {
     cars: 10,
@@ -63,6 +72,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     team: false,
     customSlug: false,
     teamSeats: 1,
+    customerEmails: "shared",
   },
   pro_trial: {
     cars: UNLIMITED,
@@ -73,6 +83,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     team: true,
     customSlug: true,
     teamSeats: 5,
+    customerEmails: "custom",
   },
   pro: {
     cars: UNLIMITED,
@@ -83,6 +94,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     team: true,
     customSlug: true,
     teamSeats: 5,
+    customerEmails: "custom",
   },
   suspended: {
     cars: 0,
@@ -93,6 +105,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     team: false,
     customSlug: false,
     teamSeats: 0,
+    customerEmails: "none",
   },
 };
 

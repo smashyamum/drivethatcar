@@ -31,6 +31,8 @@ export default async function SettingsPage() {
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://drivethatcar.app";
+  const platformSender =
+    process.env.PLATFORM_FROM_EMAIL ?? "Drive That Car <bookings@drivethatcar.app>";
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
@@ -45,7 +47,11 @@ export default async function SettingsPage() {
         isPro={org.limits.customSlug}
         siteUrl={siteUrl}
       />
-      <SettingsForm initial={settings as Settings} />
+      <SettingsForm
+        initial={settings as Settings}
+        emailTier={org.limits.customerEmails}
+        platformSender={platformSender}
+      />
     </div>
   );
 }

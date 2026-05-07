@@ -2,7 +2,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { Button } from "@/components/ui/button";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveOrgId } from "@/lib/tenant";
-import { PLAN_LABEL, isPaid, isPro, type Plan } from "@/lib/plan";
+import { PLAN_LABEL, type Plan } from "@/lib/plan";
 import type { Organization } from "@/lib/supabase/types";
 import { openBillingPortal, startCheckout } from "./actions";
 
@@ -96,7 +96,7 @@ export default async function BillingPage({
               Upgrade to remove limits and unlock more features.
             </p>
           )}
-          {plan === "starter_trial" || plan === "pro_trial" ? (
+          {(plan === "starter_trial" || plan === "pro_trial") && (
             <>
               <p className="text-fg-muted">
                 You&rsquo;re on a 7-day free trial of {plan === "pro_trial" ? "Pro" : "Starter"}.
@@ -107,8 +107,8 @@ export default async function BillingPage({
                 </p>
               )}
             </>
-          ) : null}
-          {(plan === "starter" || plan === "pro") && hasStripeSubscription && (
+          )}
+          {(plan === "starter" || plan === "pro") && (
             <>
               <p className="text-fg-muted">
                 You&rsquo;re subscribed to {PLAN_LABEL[plan]}.
@@ -118,23 +118,26 @@ export default async function BillingPage({
                   Next billing date: <span className="font-medium text-fg">{periodEnd.toLocaleDateString()}</span>.
                 </p>
               )}
-              <div className="mt-2">
-                <form action={openBillingPortal}>
-                  <Button type="submit" variant="secondary">
-                    Manage subscription / payment method
-                  </Button>
-                </form>
-              </div>
             </>
+          )}
+          {hasStripeSubscription && (
+            <div className="mt-1">
+              <form action={openBillingPortal}>
+                <Button type="submit" variant="secondary">
+                  Manage subscription / payment method
+                </Button>
+              </form>
+            </div>
           )}
         </div>
       </Card>
 
-      {/* Plan selector — show upgrade options if user isn't already on the highest tier */}
-      {!isPro(plan) && (
+      {/* Plan selector — always visible so dealers can compare and switch
+          billing cycle, except when already on the top paid tier. */}
+      {plan !== "pro" && (
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">
-            {isPaid(plan) ? "Switch plan" : "Upgrade your plan"}
+            {plan === "free" ? "Upgrade your plan" : "Switch plan"}
           </h2>
           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
             {PLAN_OPTIONS.map((p) => {

@@ -7,7 +7,8 @@ import { buildIcs } from "@/lib/ics";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { formatDateTimeInTz } from "@/lib/tz";
 import type { Booking, Car, Customer, Settings } from "@/lib/supabase/types";
-import { DEFAULT_SENDER, sendBookingEmail } from "./send";
+import { sendBookingEmail } from "./send";
+import { getEmailConfig } from "./config";
 
 const TYPE_LABEL = { viewing: "Viewing", test_drive: "Test drive" } as const;
 
@@ -48,13 +49,6 @@ function siteUrl(): string {
   return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }
 
-function senderFor(settings: Settings, businessName: string): string {
-  if (settings.resend_from_email) {
-    return `${businessName} <${settings.resend_from_email}>`;
-  }
-  return DEFAULT_SENDER;
-}
-
 function carHeadline(car: Car): string {
   return `${car.year} ${car.make} ${car.model}${car.variant ? ` ${car.variant}` : ""}`;
 }
@@ -63,6 +57,9 @@ export async function sendConfirmationEmail(bookingId: string, manageToken: stri
   const ctx = await loadContext(bookingId, manageToken);
   if (!ctx) return;
   const { booking, car, customer, settings } = ctx;
+
+  const emailCfg = await getEmailConfig(booking.organization_id);
+  if (!emailCfg.enabled) return;
 
   const startDate = new Date(booking.start_at);
   const endDate = new Date(booking.end_at);
@@ -87,7 +84,7 @@ export async function sendConfirmationEmail(bookingId: string, manageToken: stri
 
   await sendBookingEmail({
     to: customer.email,
-    from: senderFor(settings, businessName),
+    from: emailCfg.from,
     subject: `Booking confirmed — ${headline} on ${whenLabel}`,
     template: "confirmation",
     bookingId: booking.id,
@@ -130,9 +127,12 @@ export async function sendCancellationEmail(bookingId: string) {
   const headline = carHeadline(car);
   const businessName = settings.business_name ?? "Car Booking";
 
+  const emailCfg = await getEmailConfig(booking.organization_id);
+  if (!emailCfg.enabled) return;
+
   await sendBookingEmail({
     to: customer.email,
-    from: senderFor(settings, businessName),
+    from: emailCfg.from,
     subject: `Booking cancelled — ${headline}`,
     template: "cancellation",
     bookingId: booking.id,
@@ -169,6 +169,9 @@ export async function sendReminderEmail(
   if (!ctx) return;
   const { booking, car, customer, settings } = ctx;
 
+  const emailCfg = await getEmailConfig(booking.organization_id);
+  if (!emailCfg.enabled) return;
+
   const whenLabel = formatDateTimeInTz(new Date(booking.start_at), settings.timezone);
   const headline = carHeadline(car);
   const businessName = settings.business_name ?? "Car Booking";
@@ -178,7 +181,7 @@ export async function sendReminderEmail(
 
   await sendBookingEmail({
     to: customer.email,
-    from: senderFor(settings, businessName),
+    from: emailCfg.from,
     subject: `Reminder — ${headline} ${subject} at ${whenLabel}`,
     template: "reminder",
     bookingId: booking.id,
@@ -207,6 +210,9 @@ export async function sendRescheduleEmail(
   if (!ctx) return;
   const { booking, car, customer, settings } = ctx;
 
+  const emailCfg = await getEmailConfig(booking.organization_id);
+  if (!emailCfg.enabled) return;
+
   const startDate = new Date(booking.start_at);
   const endDate = new Date(booking.end_at);
   const newWhenLabel = formatDateTimeInTz(startDate, settings.timezone);
@@ -231,7 +237,7 @@ export async function sendRescheduleEmail(
 
   await sendBookingEmail({
     to: customer.email,
-    from: senderFor(settings, businessName),
+    from: emailCfg.from,
     subject: `Rescheduled — ${headline} now on ${newWhenLabel}`,
     template: "reschedule",
     bookingId: booking.id,
