@@ -106,15 +106,6 @@ export default async function BillingPage({
                   Trial ends <span className="font-medium text-fg">{trialEndsAt.toLocaleDateString()}</span>.
                 </p>
               )}
-              {hasStripeSubscription && (
-                <div className="mt-2">
-                  <form action={openBillingPortal}>
-                    <Button type="submit" variant="secondary">
-                      Manage subscription / payment method
-                    </Button>
-                  </form>
-                </div>
-              )}
             </>
           ) : null}
           {(plan === "starter" || plan === "pro") && hasStripeSubscription && (
