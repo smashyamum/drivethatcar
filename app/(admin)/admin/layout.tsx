@@ -38,9 +38,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <Link href="/admin/settings" className="hover:text-fg">
                 Settings
               </Link>
-              <Link href="/admin/settings/billing" className="hover:text-fg">
-                Billing
-              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm text-fg-muted">

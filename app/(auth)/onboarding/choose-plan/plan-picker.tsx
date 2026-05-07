@@ -52,7 +52,7 @@ function TrialButton({ plan, billing }: { plan: string; billing: string }) {
 }
 
 export function PlanPicker() {
-  const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
+  const [billing, setBilling] = useState<"monthly" | "yearly">("yearly");
 
   return (
     <div className="flex flex-col gap-8">
