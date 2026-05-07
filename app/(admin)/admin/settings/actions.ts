@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Resend } from "resend";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { getActiveMembership, getActiveOrg, getActiveOrgId } from "@/lib/tenant";
-import { getPlatformDomain } from "@/lib/email/config";
+import { getEmailConfig, getPlatformDomain } from "@/lib/email/config";
 import { isValidSlug, RESERVED_ORG_SLUGS } from "@/lib/slug";
 import { REMINDER_OFFSET_PRESETS, WEEKDAYS } from "@/lib/supabase/types";
 
@@ -216,4 +217,79 @@ export async function updateOrgSlug(
   revalidatePath("/admin/settings");
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Test email — sends a sample to the signed-in user so they can verify the
+// configured sender actually delivers before relying on it for real bookings.
+// Bypasses the booking email_log on purpose (it's a one-shot diagnostic).
+// ---------------------------------------------------------------------------
+
+export type TestEmailState = {
+  error?: string;
+  ok?: boolean;
+  sentTo?: string;
+  from?: string;
+};
+
+let _resend: Resend | null = null;
+function resendClient(): Resend {
+  if (!_resend) {
+    if (!process.env.RESEND_API_KEY) throw new Error("RESEND_API_KEY is not set");
+    _resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return _resend;
+}
+
+export async function sendTestEmail(
+  _prev: TestEmailState,
+  _formData: FormData,
+): Promise<TestEmailState> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user || !user.email) return { error: "Not signed in." };
+
+  const orgId = await getActiveOrgId();
+  const cfg = await getEmailConfig(orgId);
+  if (!cfg.enabled) {
+    return {
+      error:
+        cfg.reason === "free_plan"
+          ? "Customer emails aren't included on the Free plan."
+          : "Email sending is disabled for this account.",
+    };
+  }
+
+  const service = createSupabaseServiceClient();
+  const { data: settingsRow } = await service
+    .from("settings")
+    .select("business_name")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  const businessName =
+    (settingsRow?.business_name as string | undefined) ?? "Car Booking";
+
+  try {
+    const { error } = await resendClient().emails.send({
+      from: cfg.from,
+      to: user.email,
+      subject: `Test email from ${businessName}`,
+      text: `Hi,
+
+This is a test email from your ${businessName} CRM.
+
+If you're reading this, your customer emails are working — booking confirmations, reminders, cancellations and reschedule notices will all reach customers from this sender.
+
+Sender: ${cfg.from}
+
+— Drive That Car`,
+    });
+    if (error) return { error: error.message };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Test send failed" };
+  }
+
+  return { ok: true, sentTo: user.email, from: cfg.from };
 }
