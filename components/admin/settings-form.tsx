@@ -26,15 +26,31 @@ function SaveButton() {
   );
 }
 
+/** Pulls the local part out of "bobs-motors@drivethatcar.app" → "bobs-motors". */
+function localPartOf(fullEmail: string | null, platformDomain: string): string {
+  if (!fullEmail) return "";
+  const at = fullEmail.indexOf("@");
+  if (at < 0) return "";
+  const local = fullEmail.slice(0, at).toLowerCase();
+  const domain = fullEmail.slice(at + 1).toLowerCase();
+  // Only show a local part if it's actually on the platform domain — if
+  // a legacy custom domain is stored, blank the field so the dealer picks
+  // a fresh local part on save.
+  return domain === platformDomain.toLowerCase() ? local : "";
+}
+
 export function SettingsForm({
   initial,
   emailTier,
   platformSender,
+  platformDomain,
 }: {
   initial: Settings;
   emailTier: EmailTier;
   platformSender: string;
+  platformDomain: string;
 }) {
+  const currentLocalPart = localPartOf(initial.resend_from_email, platformDomain);
   const [state, formAction] = useActionState<SettingsState, FormData>(saveSettings, {});
 
   return (
@@ -127,18 +143,29 @@ export function SettingsForm({
         )}
 
         {emailTier === "custom" && (
-          <Field label="Sender email" htmlFor="resend_from_email">
-            <Input
-              id="resend_from_email"
-              name="resend_from_email"
-              type="email"
-              defaultValue={initial.resend_from_email ?? ""}
-              placeholder="bookings@yourdomain.com"
-            />
+          <Field label="Your sender name" htmlFor="email_local_part">
+            <div className="flex flex-wrap items-stretch">
+              <Input
+                id="email_local_part"
+                name="email_local_part"
+                defaultValue={currentLocalPart}
+                placeholder="bobs-motors"
+                pattern="^[a-z0-9]+(?:[._-][a-z0-9]+)*$"
+                minLength={3}
+                maxLength={32}
+                className="rounded-r-none"
+              />
+              <span className="inline-flex items-center rounded-r-md border border-l-0 border-border bg-bg-subtle px-3 text-sm text-fg-muted">
+                @{platformDomain}
+              </span>
+            </div>
             <p className="text-xs text-fg-muted">
-              Add your domain in <a href="https://resend.com/domains" target="_blank" rel="noreferrer" className="underline">Resend → Domains</a>{" "}
-              and verify the DNS records, then enter your sender address here. Leave blank to use
-              the platform default ({platformSender}).
+              Customer emails will come from{" "}
+              <code className="font-mono text-[12px] text-fg">
+                yourname@{platformDomain}
+              </code>
+              . 3–32 characters, lowercase letters, numbers, dots and dashes only. Leave
+              blank to use the platform default ({platformSender}).
             </p>
           </Field>
         )}

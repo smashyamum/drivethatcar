@@ -5,8 +5,41 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { getActiveMembership, getActiveOrg, getActiveOrgId } from "@/lib/tenant";
+import { getPlatformDomain } from "@/lib/email/config";
 import { isValidSlug, RESERVED_ORG_SLUGS } from "@/lib/slug";
 import { REMINDER_OFFSET_PRESETS, WEEKDAYS } from "@/lib/supabase/types";
+
+// Reserved local parts that no Pro dealer can claim — they collide with
+// platform-level senders or look fishy in customers' inboxes.
+const RESERVED_EMAIL_LOCAL_PARTS = new Set([
+  "admin",
+  "administrator",
+  "support",
+  "help",
+  "info",
+  "hello",
+  "hi",
+  "noreply",
+  "no-reply",
+  "no_reply",
+  "bookings",
+  "onboarding",
+  "mail",
+  "postmaster",
+  "abuse",
+  "security",
+  "billing",
+  "team",
+  "drivethatcar",
+  "drive-that-car",
+  "do-not-reply",
+]);
+
+const LOCAL_PART_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
+
+function isValidLocalPart(value: string): boolean {
+  return LOCAL_PART_PATTERN.test(value) && value.length >= 3 && value.length <= 32;
+}
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -63,6 +96,42 @@ export async function saveSettings(
     .filter((h) => formData.get(`reminder_${h}`) === "on")
     .sort((a, b) => b - a);
 
+  // Resolve the customer-emails sender. Pro dealers submit just the local
+  // part ("bobs-motors") which we glue onto the platform domain; the form
+  // explicitly omits this field on Free/Starter so we leave it null there.
+  const org = await getActiveOrg();
+  let resendFromEmail: string | null = null;
+  if (org.limits.customerEmails === "custom") {
+    const rawLocal = String(formData.get("email_local_part") ?? "")
+      .trim()
+      .toLowerCase();
+    if (rawLocal.length > 0) {
+      if (!isValidLocalPart(rawLocal)) {
+        return {
+          error:
+            "Use 3–32 characters: lowercase letters, numbers, dots and dashes only (e.g. bobs-motors).",
+        };
+      }
+      if (RESERVED_EMAIL_LOCAL_PARTS.has(rawLocal)) {
+        return { error: "That sender name is reserved — pick something else." };
+      }
+      const platformDomain = getPlatformDomain();
+      const candidate = `${rawLocal}@${platformDomain}`;
+      // Per-platform uniqueness so two dealers can't claim the same inbox.
+      const service = createSupabaseServiceClient();
+      const { data: clash } = await service
+        .from("settings")
+        .select("organization_id")
+        .eq("resend_from_email", candidate)
+        .neq("organization_id", orgId)
+        .maybeSingle();
+      if (clash) {
+        return { error: "That sender name is already taken — try another." };
+      }
+      resendFromEmail = candidate;
+    }
+  }
+
   const parsed = SettingsSchema.safeParse({
     business_name: (formData.get("business_name") as string)?.trim() || null,
     contact_email: (formData.get("contact_email") as string)?.trim() || null,
@@ -70,7 +139,7 @@ export async function saveSettings(
     timezone: formData.get("timezone"),
     slot_duration_minutes: formData.get("slot_duration_minutes"),
     buffer_minutes: formData.get("buffer_minutes"),
-    resend_from_email: (formData.get("resend_from_email") as string)?.trim() || null,
+    resend_from_email: resendFromEmail,
     working_hours: workingHours,
     reminder_offsets_hours: reminderOffsets,
   });

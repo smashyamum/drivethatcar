@@ -2,6 +2,7 @@ import { SettingsForm } from "@/components/admin/settings-form";
 import { SlugCard } from "@/components/admin/slug-card";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveOrg } from "@/lib/tenant";
+import { getPlatformDomain } from "@/lib/email/config";
 import type { Settings } from "@/lib/supabase/types";
 
 export const metadata = { title: "Settings · Admin" };
@@ -51,6 +52,7 @@ export default async function SettingsPage() {
         initial={settings as Settings}
         emailTier={org.limits.customerEmails}
         platformSender={platformSender}
+        platformDomain={getPlatformDomain()}
       />
     </div>
   );

@@ -24,6 +24,17 @@ function platformDefaultFrom(): string {
   );
 }
 
+/**
+ * Extracts the platform's verified domain (e.g. "drivethatcar.app") from
+ * PLATFORM_FROM_EMAIL. Used so Pro users can pick a custom local-part on
+ * the platform's domain (mybusiness@drivethatcar.app) without DNS setup.
+ */
+export function getPlatformDomain(): string {
+  const stripped = stripDisplayName(platformDefaultFrom());
+  const at = stripped.indexOf("@");
+  return at >= 0 ? stripped.slice(at + 1) : "drivethatcar.app";
+}
+
 export async function getEmailConfig(orgId: string): Promise<EmailConfig> {
   const service = createSupabaseServiceClient();
 
