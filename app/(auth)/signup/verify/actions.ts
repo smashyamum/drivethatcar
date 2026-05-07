@@ -8,6 +8,7 @@ import { getActiveMembershipOrNull } from "@/lib/tenant";
 const VerifySchema = z.object({
   email: z.string().trim().email(),
   token: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code from your email"),
+  next: z.string().optional(),
 });
 
 const ResendSchema = z.object({
@@ -24,6 +25,7 @@ export async function verifyCode(
   const parsed = VerifySchema.safeParse({
     email: formData.get("email"),
     token: formData.get("token"),
+    next: formData.get("next") ?? undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid code" };
@@ -45,6 +47,12 @@ export async function verifyCode(
     }
     return { error: error.message };
   }
+
+  // Invitee path: skip onboarding and bounce them straight to the invite-
+  // accept page where they'll be added to the existing org.
+  const safeNext =
+    parsed.data.next?.startsWith("/accept-invite/") ? parsed.data.next : null;
+  if (safeNext) redirect(safeNext);
 
   const membership = await getActiveMembershipOrNull();
   redirect(membership ? "/admin" : "/onboarding");

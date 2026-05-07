@@ -30,6 +30,14 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Honour `next` for invitee flows (signUp() sets it on emailRedirectTo so
+  // invited teammates skip /onboarding and land on the accept-invite page).
+  // Locked to same-origin /accept-invite/* paths — never an open redirect.
+  const next = searchParams.get("next");
+  if (next && next.startsWith("/accept-invite/")) {
+    return NextResponse.redirect(`${origin}${next}`);
+  }
+
   const membership = await getActiveMembershipOrNull();
   return NextResponse.redirect(
     `${origin}${membership ? "/admin" : "/onboarding"}`,

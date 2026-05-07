@@ -8,34 +8,49 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signUp, type SignUpState } from "./actions";
 
-function SubmitButton() {
+function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? "Creating account…" : "Create account"}
+      {pending ? "Creating account…" : label}
     </Button>
   );
 }
 
-export function SignupForm() {
+export function SignupForm({
+  lockedEmail,
+  next,
+}: {
+  /** When set (= invite flow), the email field is read-only and the
+   *  business-name field is hidden. */
+  lockedEmail: string | null;
+  /** Where to send the user after they finish signing up + verifying. */
+  next: string | null;
+}) {
   const [state, formAction] = useActionState<SignUpState, FormData>(signUp, {});
+  const isInvite = lockedEmail !== null;
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="business_name">Business name</Label>
-        <Input
-          id="business_name"
-          name="business_name"
-          type="text"
-          autoComplete="organization"
-          required
-          placeholder="Acme Motors"
-        />
-        {state.fieldErrors?.business_name && (
-          <p className="text-xs text-red-700">{state.fieldErrors.business_name}</p>
-        )}
-      </div>
+      {next && <input type="hidden" name="next" value={next} />}
+
+      {!isInvite && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="business_name">Business name</Label>
+          <Input
+            id="business_name"
+            name="business_name"
+            type="text"
+            autoComplete="organization"
+            required
+            placeholder="Acme Motors"
+          />
+          {state.fieldErrors?.business_name && (
+            <p className="text-xs text-red-700">{state.fieldErrors.business_name}</p>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">Email</Label>
         <Input
@@ -44,12 +59,21 @@ export function SignupForm() {
           type="email"
           autoComplete="email"
           required
+          readOnly={isInvite}
+          defaultValue={lockedEmail ?? undefined}
           placeholder="you@example.com"
+          className={isInvite ? "bg-bg-subtle text-fg-muted" : undefined}
         />
+        {isInvite && (
+          <p className="text-xs text-fg-muted">
+            Tied to your invite — must use this address.
+          </p>
+        )}
         {state.fieldErrors?.email && (
           <p className="text-xs text-red-700">{state.fieldErrors.email}</p>
         )}
       </div>
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="password">Password</Label>
         <Input
@@ -65,13 +89,23 @@ export function SignupForm() {
           <p className="text-xs text-red-700">{state.fieldErrors.password}</p>
         )}
       </div>
+
       {state.error && (
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
       )}
-      <SubmitButton />
+
+      <SubmitButton label={isInvite ? "Create account & accept invite" : "Create account"} />
+
       <p className="text-center text-xs text-fg-muted">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium hover:underline">
+        <Link
+          href={
+            next
+              ? `/login?next=${encodeURIComponent(next)}`
+              : "/login"
+          }
+          className="font-medium hover:underline"
+        >
           Sign in
         </Link>
       </p>

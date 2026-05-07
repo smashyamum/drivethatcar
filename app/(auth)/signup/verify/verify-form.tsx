@@ -34,7 +34,13 @@ function ResendButton({ sent }: { sent: boolean }) {
   );
 }
 
-export function VerifyForm({ email }: { email: string }) {
+export function VerifyForm({
+  email,
+  next,
+}: {
+  email: string;
+  next: string | null;
+}) {
   const [verifyState, verifyAction] = useActionState<VerifyState, FormData>(
     verifyCode,
     {},
@@ -48,6 +54,7 @@ export function VerifyForm({ email }: { email: string }) {
     <div className="flex flex-col gap-4">
       <form action={verifyAction} className="flex flex-col gap-4">
         <input type="hidden" name="email" value={email} />
+        {next && <input type="hidden" name="next" value={next} />}
         {verifyState.error && (
           <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
             {verifyState.error}

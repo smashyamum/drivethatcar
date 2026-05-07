@@ -7,9 +7,11 @@ export const metadata = { title: "Enter your code · Drive That Car" };
 export default async function VerifyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ email?: string }>;
+  searchParams: Promise<{ email?: string; next?: string }>;
 }) {
-  const { email } = await searchParams;
+  const { email, next } = await searchParams;
+  const safeNext =
+    next && next.startsWith("/accept-invite/") ? next : null;
 
   return (
     <div className="mx-auto w-full max-w-md">
@@ -22,7 +24,7 @@ export default async function VerifyPage({
             Enter it below to finish creating your account.
           </CardDescription>
         </CardHeader>
-        <VerifyForm email={email ?? ""} />
+        <VerifyForm email={email ?? ""} next={safeNext} />
         <div className="mt-4 text-xs text-fg-muted">
           Don&rsquo;t see it? Check spam, or{" "}
           <Link href="/signup" className="font-medium hover:underline">
