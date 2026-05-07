@@ -1,3 +1,4 @@
+import { EmailSenderCard } from "@/components/admin/email-sender-card";
 import { SettingsForm } from "@/components/admin/settings-form";
 import { SlugCard } from "@/components/admin/slug-card";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -48,12 +49,13 @@ export default async function SettingsPage() {
         isPro={org.limits.customSlug}
         siteUrl={siteUrl}
       />
-      <SettingsForm
-        initial={settings as Settings}
+      <EmailSenderCard
         emailTier={org.limits.customerEmails}
         platformSender={platformSender}
         platformDomain={getPlatformDomain()}
+        currentResendFromEmail={(settings as Settings).resend_from_email ?? null}
       />
+      <SettingsForm initial={settings as Settings} />
     </div>
   );
 }

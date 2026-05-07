@@ -97,41 +97,14 @@ export async function saveSettings(
     .filter((h) => formData.get(`reminder_${h}`) === "on")
     .sort((a, b) => b - a);
 
-  // Resolve the customer-emails sender. Pro dealers submit just the local
-  // part ("bobs-motors") which we glue onto the platform domain; the form
-  // explicitly omits this field on Free/Starter so we leave it null there.
-  const org = await getActiveOrg();
-  let resendFromEmail: string | null = null;
-  if (org.limits.customerEmails === "custom") {
-    const rawLocal = String(formData.get("email_local_part") ?? "")
-      .trim()
-      .toLowerCase();
-    if (rawLocal.length > 0) {
-      if (!isValidLocalPart(rawLocal)) {
-        return {
-          error:
-            "Use 3–32 characters: lowercase letters, numbers, dots and dashes only (e.g. bobs-motors).",
-        };
-      }
-      if (RESERVED_EMAIL_LOCAL_PARTS.has(rawLocal)) {
-        return { error: "That sender name is reserved — pick something else." };
-      }
-      const platformDomain = getPlatformDomain();
-      const candidate = `${rawLocal}@${platformDomain}`;
-      // Per-platform uniqueness so two dealers can't claim the same inbox.
-      const service = createSupabaseServiceClient();
-      const { data: clash } = await service
-        .from("settings")
-        .select("organization_id")
-        .eq("resend_from_email", candidate)
-        .neq("organization_id", orgId)
-        .maybeSingle();
-      if (clash) {
-        return { error: "That sender name is already taken — try another." };
-      }
-      resendFromEmail = candidate;
-    }
-  }
+  // resend_from_email is owned by EmailSenderCard's own form/action — don't
+  // touch it from the general settings save (its inputs aren't even in this
+  // form, so we pass through whatever is already on the row).
+  const { data: existing } = await supabase
+    .from("settings")
+    .select("resend_from_email")
+    .eq("organization_id", orgId)
+    .single();
 
   const parsed = SettingsSchema.safeParse({
     business_name: (formData.get("business_name") as string)?.trim() || null,
@@ -140,7 +113,7 @@ export async function saveSettings(
     timezone: formData.get("timezone"),
     slot_duration_minutes: formData.get("slot_duration_minutes"),
     buffer_minutes: formData.get("buffer_minutes"),
-    resend_from_email: resendFromEmail,
+    resend_from_email: (existing?.resend_from_email as string | null) ?? null,
     working_hours: workingHours,
     reminder_offsets_hours: reminderOffsets,
   });
@@ -216,6 +189,76 @@ export async function updateOrgSlug(
 
   revalidatePath("/admin/settings");
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Custom sender (Pro tier) — the dealer picks a local part that we glue onto
+// the platform's verified domain. Lives in its own action/form so the test-
+// email button can sit next to it as a sibling form.
+// ---------------------------------------------------------------------------
+
+export type EmailSenderState = { error?: string; ok?: boolean };
+
+export async function updateEmailSender(
+  _prev: EmailSenderState,
+  formData: FormData,
+): Promise<EmailSenderState> {
+  const { role } = await getActiveMembership();
+  if (role !== "owner" && role !== "admin") {
+    return { error: "Only owners or admins can change the customer-email sender." };
+  }
+  const org = await getActiveOrg();
+  if (org.limits.customerEmails !== "custom") {
+    return { error: "Custom senders are a Pro feature." };
+  }
+
+  const rawLocal = String(formData.get("email_local_part") ?? "")
+    .trim()
+    .toLowerCase();
+
+  // Empty input = revert to platform default.
+  if (rawLocal.length === 0) {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase
+      .from("settings")
+      .update({ resend_from_email: null })
+      .eq("organization_id", org.id);
+    if (error) return { error: error.message };
+    revalidatePath("/admin/settings");
+    return { ok: true };
+  }
+
+  if (!isValidLocalPart(rawLocal)) {
+    return {
+      error:
+        "Use 3–32 characters: lowercase letters, numbers, dots and dashes only (e.g. bobs-motors).",
+    };
+  }
+  if (RESERVED_EMAIL_LOCAL_PARTS.has(rawLocal)) {
+    return { error: "That sender name is reserved — pick something else." };
+  }
+
+  const candidate = `${rawLocal}@${getPlatformDomain()}`;
+
+  const service = createSupabaseServiceClient();
+  const { data: clash } = await service
+    .from("settings")
+    .select("organization_id")
+    .eq("resend_from_email", candidate)
+    .neq("organization_id", org.id)
+    .maybeSingle();
+  if (clash) {
+    return { error: "That sender name is already taken — try another." };
+  }
+
+  const { error } = await service
+    .from("settings")
+    .update({ resend_from_email: candidate })
+    .eq("organization_id", org.id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/settings");
   return { ok: true };
 }
 
