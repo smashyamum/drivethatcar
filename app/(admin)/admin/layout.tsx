@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveMembershipOrNull } from "@/lib/tenant";
+import { getActiveMembershipOrNull, getActiveOrg } from "@/lib/tenant";
 import { signOut } from "../login/actions";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -16,6 +16,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // onboarding. Send them through it.
   const membership = await getActiveMembershipOrNull();
   if (!membership) redirect("/onboarding");
+
+  const org = await getActiveOrg();
 
   return (
     <div className="min-h-screen bg-bg-subtle">
@@ -35,6 +37,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <Link href="/admin/customers" className="hover:text-fg">
                 Customers
               </Link>
+              {org.limits.analytics && (
+                <Link href="/admin/analytics" className="hover:text-fg">
+                  Analytics
+                </Link>
+              )}
               <Link href="/admin/settings" className="hover:text-fg">
                 Settings
               </Link>

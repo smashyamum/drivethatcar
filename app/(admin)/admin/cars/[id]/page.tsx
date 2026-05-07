@@ -4,6 +4,8 @@ import { CarForm } from "@/components/admin/car-form";
 import { DeleteCarForm } from "@/components/admin/delete-car-form";
 import { PhotoManager } from "@/components/admin/photo-manager";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrg } from "@/lib/tenant";
+import { loadCarStats } from "@/lib/stats";
 import type { Car, CarPhoto } from "@/lib/supabase/types";
 import { deleteCar, updateCar } from "../actions";
 
@@ -37,6 +39,9 @@ export default async function EditCarPage({
     .select("id", { count: "exact", head: true })
     .eq("car_id", car.id);
 
+  const org = await getActiveOrg();
+  const carStats = org.limits.analytics ? await loadCarStats(car.id) : null;
+
   const updateAction = updateCar.bind(null, car.id);
   const deleteAction = deleteCar.bind(null, car.id);
   const carHeadline = `${car.year} ${car.make} ${car.model}${car.variant ? ` ${car.variant}` : ""}`;
@@ -63,6 +68,24 @@ export default async function EditCarPage({
       <div className="rounded-[12px] border border-border bg-bg p-6">
         <PhotoManager carId={car.id} photos={photos} />
       </div>
+
+      {carStats && (
+        <div className="rounded-[12px] border border-border bg-bg p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">
+            Performance
+          </h2>
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <PerfStat label="Total bookings" value={String(carStats.totalBookings)} />
+            <PerfStat
+              label={car.status === "sold" ? "Days to sell" : "Days on lot"}
+              value={String(carStats.daysOnLot)}
+            />
+            {car.status === "sold" && carStats.bookingsToSell != null && (
+              <PerfStat label="Bookings before sale" value={String(carStats.bookingsToSell)} />
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-[12px] border border-border bg-bg p-6">
         <CarForm
@@ -99,6 +122,17 @@ export default async function EditCarPage({
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+function PerfStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
     </div>
   );
 }

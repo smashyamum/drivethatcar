@@ -189,11 +189,20 @@ export async function updateCar(
   const wasNotSold = previous?.status !== "sold";
   const isBecomingSold = rest.status === "sold" && wasNotSold;
 
-  const update = {
+  const update: Record<string, unknown> = {
     ...rest,
     price_pence: Math.round(price_pounds * 100),
     ...(providedSlug && providedSlug.length > 0 ? { slug: providedSlug } : {}),
   };
+
+  // Stamp sold_at exactly when status transitions into 'sold' (and clear it
+  // if a previously-sold car gets relisted). Analytics needs the precise
+  // moment to bucket sales by date range.
+  if (isBecomingSold) {
+    update.sold_at = new Date().toISOString();
+  } else if (previous?.status === "sold" && rest.status !== "sold") {
+    update.sold_at = null;
+  }
 
   const { error } = await supabase.from("cars").update(update).eq("id", id);
   if (error) return { error: error.message };

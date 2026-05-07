@@ -77,6 +77,7 @@ export type Car = {
   registration: string | null;
   description: string | null;
   status: CarStatus;
+  sold_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -154,6 +155,7 @@ export type Customer = {
   lead_source: string | null;
   next_follow_up_at: string | null;
   interested_car_id: string | null;
+  sold_at: string | null;
   created_at: string;
   updated_at: string;
 };

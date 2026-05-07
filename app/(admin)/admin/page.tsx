@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveOrg } from "@/lib/tenant";
 import { isPro } from "@/lib/plan";
 import { formatDateTimeInTz } from "@/lib/tz";
+import { defaultRange, loadAggregateStats, type AggregateStats } from "@/lib/stats";
 import {
   LEAD_STATUS_LABEL,
   LEAD_STATUS_TONE,
@@ -34,6 +35,10 @@ export default async function AdminDashboard() {
   const nowIso = now.toISOString();
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Honest dashboard analytics: real numbers (zeros if no data) over the last 7
+  // days. Non-Pro users see them blurred behind an upgrade overlay.
+  const analyticsStats = await loadAggregateStats(orgId, defaultRange(7));
 
   const [
     { count: carsAvailable },
@@ -218,7 +223,7 @@ export default async function AdminDashboard() {
         </Card>
       </div>
 
-      <AnalyticsTeaser proAccess={proAccess} />
+      <AnalyticsTeaser proAccess={proAccess} stats={analyticsStats} />
 
       <div>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">
@@ -276,28 +281,38 @@ function QuickLink({ href, label }: { href: string; label: string }) {
   );
 }
 
-function AnalyticsTeaser({ proAccess }: { proAccess: boolean }) {
+function AnalyticsTeaser({
+  proAccess,
+  stats,
+}: {
+  proAccess: boolean;
+  stats: AggregateStats;
+}) {
+  const fmtPct = (v: number | null) => (v == null ? "—" : `${Math.round(v)}%`);
   return (
     <div>
       <div className="flex items-baseline justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">
-          Analytics
+          Analytics — last 7 days
         </h2>
-        {!proAccess && (
+        {proAccess ? (
+          <Link href="/admin/analytics" className="text-xs font-medium hover:underline">
+            Full report →
+          </Link>
+        ) : (
           <span className="rounded-full bg-fg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-bg">
             Pro
           </span>
         )}
       </div>
-      <div className="relative mt-3 min-h-[280px] overflow-hidden rounded-[12px] border border-border bg-bg">
-        {/* Sample analytics — gets blurred for non-Pro plans. */}
+      <div className="relative mt-3 min-h-[200px] overflow-hidden rounded-[12px] border border-border bg-bg">
         <div
           className={`grid grid-cols-2 gap-4 p-6 sm:grid-cols-4 ${proAccess ? "" : "pointer-events-none select-none blur-[6px]"}`}
         >
-          <TeaserStat label="Booking → sale" value="42%" sub="Last 30 days" />
-          <TeaserStat label="Avg lead response" value="3.4h" sub="Time to first contact" />
-          <TeaserStat label="Top performer" value="Sarah K." sub="12 bookings · 5 sales" />
-          <TeaserStat label="Hottest car" value="Cayenne GTS" sub="8 viewings booked" />
+          <TeaserStat label="Bookings" value={String(stats.bookings)} />
+          <TeaserStat label="Sales closed" value={String(stats.sales)} />
+          <TeaserStat label="Conversion" value={fmtPct(stats.conversionRate)} />
+          <TeaserStat label="No-show rate" value={fmtPct(stats.noShowRate)} />
         </div>
         {!proAccess && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-bg/40 px-6 py-10 text-center backdrop-blur-[2px]">
@@ -305,8 +320,8 @@ function AnalyticsTeaser({ proAccess }: { proAccess: boolean }) {
               Unlock sales analytics &amp; leaderboards
             </p>
             <p className="max-w-md text-sm text-fg-muted">
-              See conversion rates, response times, top performers and the cars
-              driving the most bookings — all included with Pro.
+              See conversion rates, sales by team member, no-show rates and per-car
+              performance — all included with Pro.
             </p>
             <Link
               href="/admin/settings/billing"
@@ -321,14 +336,13 @@ function AnalyticsTeaser({ proAccess }: { proAccess: boolean }) {
   );
 }
 
-function TeaserStat({ label, value, sub }: { label: string; value: string; sub: string }) {
+function TeaserStat({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
         {label}
       </p>
       <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
-      <p className="mt-0.5 text-xs text-fg-muted">{sub}</p>
     </div>
   );
 }

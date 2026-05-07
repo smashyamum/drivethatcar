@@ -114,9 +114,18 @@ export async function setLeadStatus(
 
   if (previous === parsed.data.status) return { ok: true };
 
+  // Stamp sold_at when flipping to 'sold' (clear it if leaving 'sold').
+  // Analytics buckets sales by sold_at, so this needs to be precise.
+  const update: Record<string, unknown> = { lead_status: parsed.data.status };
+  if (parsed.data.status === "sold") {
+    update.sold_at = new Date().toISOString();
+  } else if (previous === "sold") {
+    update.sold_at = null;
+  }
+
   const { error } = await auth.supabase
     .from("customers")
-    .update({ lead_status: parsed.data.status })
+    .update(update)
     .eq("id", parsed.data.customerId);
   if (error) return { error: error.message };
 
