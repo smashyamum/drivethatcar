@@ -246,6 +246,49 @@ export async function updateCar(
 }
 
 /**
+ * Bulk-archive cars (status → 'hidden'). Doesn't touch bookings — archive
+ * just removes the car from public listings; customers with existing
+ * confirmed bookings can still manage them via their secure link.
+ */
+export async function archiveCars(formData: FormData) {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const rawIds = formData.getAll("ids").filter((v): v is string => typeof v === "string");
+  const q = (formData.get("q") as string)?.trim() ?? "";
+  const ids = Array.from(new Set(rawIds)).filter((s) => s.length > 0);
+
+  const back = q ? `/admin/cars?q=${encodeURIComponent(q)}` : "/admin/cars";
+
+  if (ids.length === 0 || ids.length > 200) {
+    redirect(`${back}${back.includes("?") ? "&" : "?"}error=none_selected`);
+  }
+
+  const { error, count } = await supabase
+    .from("cars")
+    .update({ status: "hidden" }, { count: "exact" })
+    .in("id", ids)
+    .neq("status", "hidden");
+
+  if (error) {
+    redirect(
+      `${back}${back.includes("?") ? "&" : "?"}error=${encodeURIComponent(error.message)}`,
+    );
+  }
+
+  revalidatePath("/admin/cars");
+  revalidatePath("/cars");
+
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  params.set("archived", String(count ?? 0));
+  redirect(`/admin/cars?${params.toString()}`);
+}
+
+/**
  * Bulk-delete cars. Mirrors deleteLeads — the FK is "on delete restrict"
  * so we drop attached bookings first, but for any *future confirmed*
  * booking we fire a cancellation email before the row goes away (so the
@@ -260,10 +303,13 @@ export async function deleteCars(formData: FormData) {
   if (!user) redirect("/login");
 
   const rawIds = formData.getAll("ids").filter((v): v is string => typeof v === "string");
+  const q = (formData.get("q") as string)?.trim() ?? "";
   const ids = Array.from(new Set(rawIds)).filter((s) => s.length > 0);
 
+  const back = q ? `/admin/cars?q=${encodeURIComponent(q)}` : "/admin/cars";
+
   if (ids.length === 0 || ids.length > 200) {
-    redirect("/admin/cars?error=none_selected");
+    redirect(`${back}${back.includes("?") ? "&" : "?"}error=none_selected`);
   }
 
   const nowIso = new Date().toISOString();
@@ -290,7 +336,9 @@ export async function deleteCars(formData: FormData) {
     .delete({ count: "exact" })
     .in("car_id", ids);
   if (bookingsErr) {
-    redirect(`/admin/cars?error=${encodeURIComponent(bookingsErr.message)}`);
+    redirect(
+      `${back}${back.includes("?") ? "&" : "?"}error=${encodeURIComponent(bookingsErr.message)}`,
+    );
   }
 
   const { error, count } = await supabase
@@ -298,7 +346,9 @@ export async function deleteCars(formData: FormData) {
     .delete({ count: "exact" })
     .in("id", ids);
   if (error) {
-    redirect(`/admin/cars?error=${encodeURIComponent(error.message)}`);
+    redirect(
+      `${back}${back.includes("?") ? "&" : "?"}error=${encodeURIComponent(error.message)}`,
+    );
   }
 
   revalidatePath("/admin/cars");
@@ -306,6 +356,7 @@ export async function deleteCars(formData: FormData) {
   revalidatePath("/cars");
 
   const params = new URLSearchParams();
+  if (q) params.set("q", q);
   params.set("deleted", String(count ?? 0));
   if ((bookingsDeleted ?? 0) > 0) params.set("bookings", String(bookingsDeleted));
   redirect(`/admin/cars?${params.toString()}`);

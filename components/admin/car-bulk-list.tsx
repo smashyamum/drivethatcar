@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyLinkButton } from "@/components/admin/copy-link-button";
-import type { Car, CarStatus } from "@/lib/supabase/types";
+import { CAR_STATUS_LABEL, type Car, type CarStatus } from "@/lib/supabase/types";
 import { formatMileage, formatPrice } from "@/lib/utils";
-import { deleteCars } from "@/app/(admin)/admin/cars/actions";
+import { archiveCars, deleteCars } from "@/app/(admin)/admin/cars/actions";
 
 const STATUS_TONE: Record<CarStatus, "success" | "warning" | "neutral"> = {
   available: "success",
@@ -22,12 +22,17 @@ type Row = Car & {
 export function CarBulkList({
   cars,
   publicBaseUrl,
+  q,
+  emptyState,
 }: {
   cars: Row[];
   /** e.g. "https://drivethatcar.app" — used to build absolute copy-to-clipboard URLs. */
   publicBaseUrl: string;
+  /** Active search term (threaded through bulk-action redirects). */
+  q: string;
+  /** What to show when the list is empty — varies whether the user is searching or has no cars at all. */
+  emptyState: "no-cars" | "no-matches";
 }) {
-  const formRef = useRef<HTMLFormElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const allIds = useMemo(() => cars.map((c) => c.id), [cars]);
@@ -68,7 +73,24 @@ export function CarBulkList({
     if (!window.confirm(msg)) e.preventDefault();
   }
 
+  function onArchiveClick(e: React.MouseEvent<HTMLButtonElement>) {
+    if (selected.size === 0) {
+      e.preventDefault();
+      return;
+    }
+    const carWord = selected.size === 1 ? "car" : "cars";
+    const msg = `Archive ${selected.size} ${carWord}? They'll come off your public listings but existing bookings stay intact. You can restore them anytime by changing the status back.`;
+    if (!window.confirm(msg)) e.preventDefault();
+  }
+
   if (cars.length === 0) {
+    if (emptyState === "no-matches") {
+      return (
+        <div className="rounded-lg border border-dashed border-border-strong bg-bg p-10 text-center">
+          <p className="text-sm text-fg-muted">No cars match your search.</p>
+        </div>
+      );
+    }
     return (
       <div className="rounded-lg border border-dashed border-border-strong bg-bg p-10 text-center">
         <p className="text-sm text-fg-muted">No cars yet.</p>
@@ -80,12 +102,8 @@ export function CarBulkList({
   }
 
   return (
-    <form ref={formRef} action={deleteCars} className="flex flex-col gap-3">
-      {Array.from(selected).map((id) => (
-        <input key={id} type="hidden" name="ids" value={id} />
-      ))}
-
-      <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-bg-subtle px-3 py-2">
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-bg-subtle px-3 py-2">
         <label className="flex items-center gap-2 text-sm text-fg-muted">
           <input
             type="checkbox"
@@ -96,15 +114,39 @@ export function CarBulkList({
           />
           {selected.size > 0 ? `${selected.size} selected` : `Select all`}
         </label>
-        <Button
-          type="submit"
-          variant="danger"
-          size="sm"
-          disabled={selected.size === 0}
-          onClick={onDeleteClick}
-        >
-          Delete selected
-        </Button>
+
+        <div className="flex flex-wrap gap-2">
+          <form action={archiveCars}>
+            <input type="hidden" name="q" value={q} />
+            {Array.from(selected).map((id) => (
+              <input key={id} type="hidden" name="ids" value={id} />
+            ))}
+            <Button
+              type="submit"
+              variant="secondary"
+              size="sm"
+              disabled={selected.size === 0}
+              onClick={onArchiveClick}
+            >
+              Archive selected
+            </Button>
+          </form>
+          <form action={deleteCars}>
+            <input type="hidden" name="q" value={q} />
+            {Array.from(selected).map((id) => (
+              <input key={id} type="hidden" name="ids" value={id} />
+            ))}
+            <Button
+              type="submit"
+              variant="danger"
+              size="sm"
+              disabled={selected.size === 0}
+              onClick={onDeleteClick}
+            >
+              Delete selected
+            </Button>
+          </form>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-bg">
@@ -149,7 +191,9 @@ export function CarBulkList({
                 <td className="px-4 py-3 text-fg-muted">{formatMileage(car.mileage)}</td>
                 <td className="px-4 py-3 font-medium">{formatPrice(car.price_pence)}</td>
                 <td className="px-4 py-3">
-                  <Badge tone={STATUS_TONE[car.status]}>{car.status}</Badge>
+                  <Badge tone={STATUS_TONE[car.status]}>
+                    {CAR_STATUS_LABEL[car.status]}
+                  </Badge>
                 </td>
                 <td className="px-4 py-3 text-right">
                   <CopyLinkButton
@@ -162,6 +206,6 @@ export function CarBulkList({
           </tbody>
         </table>
       </div>
-    </form>
+    </div>
   );
 }

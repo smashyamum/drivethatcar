@@ -39,7 +39,8 @@ export default function ImportCarsPage() {
           <code className="font-mono text-[12px]">registration</code>,{" "}
           <code className="font-mono text-[12px]">description</code>,{" "}
           <code className="font-mono text-[12px]">status</code> (available / sold /
-          hidden — defaults to available).
+          hidden / archived — defaults to available; &ldquo;archived&rdquo; is
+          accepted as a synonym for &ldquo;hidden&rdquo;).
         </p>
         <p className="mt-2 text-sm text-fg-muted">
           Case and spacing don&rsquo;t matter — &ldquo;Automatic&rdquo;,{" "}

@@ -102,7 +102,7 @@ export default async function EditCarPage({
         {errorParam && (
           <p className="mt-3 rounded-md bg-red-100 px-3 py-2 text-sm text-red-800">
             {errorParam === "has_bookings"
-              ? `Can't delete — this car has ${bookingCount} booking${bookingCount === 1 ? "" : "s"} attached. Cancel/clear them first, or use status "sold" / "hidden" instead.`
+              ? `Can't delete — this car has ${bookingCount} booking${bookingCount === 1 ? "" : "s"} attached. Cancel/clear them first, or use status "sold" / "archived" instead.`
               : `Delete failed: ${errorParam}`}
           </p>
         )}
@@ -112,7 +112,7 @@ export default async function EditCarPage({
           {bookingCount === 1 ? "" : "s"}. Any future confirmed bookings get
           a cancellation email automatically. To keep history without
           deleting, set status to <strong>sold</strong> or{" "}
-          <strong>hidden</strong> instead.
+          <strong>archived</strong> instead.
         </p>
         <div className="mt-4">
           <DeleteCarForm

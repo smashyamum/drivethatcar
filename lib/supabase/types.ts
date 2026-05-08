@@ -48,6 +48,14 @@ export type OrgInvitation = {
 };
 
 export type CarStatus = "available" | "sold" | "hidden";
+
+// We keep "hidden" as the underlying value for backwards-compat (existing
+// rows + imports), but surface it as "Archived" in every dealer-facing label.
+export const CAR_STATUS_LABEL: Record<CarStatus, string> = {
+  available: "Available",
+  sold: "Sold",
+  hidden: "Archived",
+};
 export type Transmission = "manual" | "automatic" | "semi_auto";
 export type FuelType = "petrol" | "diesel" | "hybrid" | "phev" | "electric";
 export type BodyType =

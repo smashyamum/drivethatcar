@@ -152,7 +152,7 @@ export function CarForm({ action, initial, submitLabel, cancelHref, showSlug = f
           <Select id="status" name="status" defaultValue={initial?.status ?? "available"}>
             <option value="available">Available</option>
             <option value="sold">Sold (auto-hides booking page)</option>
-            <option value="hidden">Hidden</option>
+            <option value="hidden">Archived (off public listings)</option>
           </Select>
         </Field>
       </div>
