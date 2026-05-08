@@ -55,11 +55,19 @@ export default async function AdminBookingsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Bookings</h1>
-        <p className="mt-1 text-sm text-fg-muted">
-          {upcoming.length} upcoming · {past.length} past
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Bookings</h1>
+          <p className="mt-1 text-sm text-fg-muted">
+            {upcoming.length} upcoming · {past.length} past
+          </p>
+        </div>
+        <Link
+          href="/admin/bookings/new"
+          className="inline-flex items-center justify-center rounded-md bg-fg px-4 py-2 text-sm font-semibold text-bg hover:opacity-90"
+        >
+          + New booking
+        </Link>
       </div>
 
       <Section title="Upcoming">

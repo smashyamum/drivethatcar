@@ -66,7 +66,9 @@ export default async function AnalyticsPage({
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {isManager ? "Team analytics" : "Your analytics"}
+        </h1>
         <p className="mt-1 text-sm text-fg-muted">
           {isManager
             ? "Team performance over the chosen date range."

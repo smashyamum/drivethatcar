@@ -42,7 +42,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               </Link>
               {org.limits.analytics && (
                 <Link href="/admin/analytics" className="hover:text-fg">
-                  Team analytics
+                  {org.role === "sales" ? "Your analytics" : "Team analytics"}
                 </Link>
               )}
               <Link href="/admin/settings" className="hover:text-fg">

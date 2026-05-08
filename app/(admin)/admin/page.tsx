@@ -29,16 +29,25 @@ type OverdueLead = Pick<Customer, "id" | "name" | "phone" | "lead_status" | "nex
 
 export default async function AdminDashboard() {
   const supabase = await createSupabaseServerClient();
-  const { id: orgId, plan } = await getActiveOrg();
+  const { id: orgId, plan, role } = await getActiveOrg();
   const proAccess = isPro(plan);
+  const isSalesRole = role === "sales";
   const now = new Date();
   const nowIso = now.toISOString();
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Honest dashboard analytics: real numbers (zeros if no data) over the last 7
-  // days. Non-Pro users see them blurred behind an upgrade overlay.
-  const analyticsStats = await loadAggregateStats(orgId, defaultRange(7));
+  // Sales reps only see their own performance, not the team's. Owner/Admin
+  // see the team aggregate.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const myUserId = user?.id ?? null;
+  const analyticsStats = await loadAggregateStats(
+    orgId,
+    defaultRange(7),
+    isSalesRole ? myUserId : null,
+  );
 
   const [
     { count: carsAvailable },
@@ -223,7 +232,11 @@ export default async function AdminDashboard() {
         </Card>
       </div>
 
-      <AnalyticsTeaser proAccess={proAccess} stats={analyticsStats} />
+      <AnalyticsTeaser
+        proAccess={proAccess}
+        stats={analyticsStats}
+        isSalesRole={isSalesRole}
+      />
 
       <div>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">
@@ -284,16 +297,21 @@ function QuickLink({ href, label }: { href: string; label: string }) {
 function AnalyticsTeaser({
   proAccess,
   stats,
+  isSalesRole,
 }: {
   proAccess: boolean;
   stats: AggregateStats;
+  isSalesRole: boolean;
 }) {
   const fmtPct = (v: number | null) => (v == null ? "—" : `${Math.round(v)}%`);
+  const heading = isSalesRole
+    ? "Your performance — last 7 days"
+    : "Analytics — last 7 days";
   return (
     <div>
       <div className="flex items-baseline justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">
-          Analytics — last 7 days
+          {heading}
         </h2>
         {proAccess ? (
           <Link href="/admin/analytics" className="text-xs font-medium hover:underline">
