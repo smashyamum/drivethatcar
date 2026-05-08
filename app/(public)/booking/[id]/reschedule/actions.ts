@@ -47,8 +47,16 @@ export async function rescheduleBooking(
   if (Number.isNaN(newStart.getTime())) return { error: "Invalid time." };
   if (newStart <= new Date()) return { error: "Pick a slot in the future." };
 
-  // Validate slot is still available for this car
-  const { data: settingsData } = await service.from("settings").select("*").eq("id", 1).single();
+  // Validate slot is still available for this car. Settings are per-org
+  // post-multitenancy — was failing silently on `id = 1` for any non-legacy
+  // dealer, which is what looked like "reschedule made a duplicate" when
+  // customers gave up and re-booked.
+  const { data: settingsData } = await service
+    .from("settings")
+    .select("*")
+    .eq("organization_id", booking.organization_id)
+    .single();
+  if (!settingsData) return { error: "Couldn't load dealer settings." };
   const settings = settingsData as Settings;
 
   const localDate = formatLocalDateString(newStart);
@@ -74,6 +82,7 @@ export async function rescheduleBooking(
     service
       .from("blocked_slots")
       .select("start_at, end_at")
+      .eq("organization_id", booking.organization_id)
       .gte("end_at", dayStart.toISOString())
       .lte("start_at", dayEnd.toISOString()),
   ]);

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { sendReminderEmail } from "@/lib/email/booking-emails";
-import type { Booking, Settings } from "@/lib/supabase/types";
+import type { Booking } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
 
@@ -32,22 +32,29 @@ export async function GET(request: NextRequest) {
 
   const service = createSupabaseServiceClient();
 
-  const { data: settingsData, error: settingsError } = await service
+  // Multi-tenant: every org sets its own reminder schedule. Build a map
+  // organization_id → offsets so we can resolve per-booking below.
+  const { data: allSettings, error: settingsError } = await service
     .from("settings")
-    .select("*")
-    .eq("id", 1)
-    .single();
-  if (settingsError || !settingsData) {
-    return NextResponse.json({ error: "settings missing" }, { status: 500 });
+    .select("organization_id, reminder_offsets_hours");
+  if (settingsError) {
+    return NextResponse.json({ error: settingsError.message }, { status: 500 });
   }
-  const settings = settingsData as Settings;
-  const offsets = (settings.reminder_offsets_hours ?? [24]).filter((n) => n > 0);
-  if (offsets.length === 0) {
+  const offsetsByOrg = new Map<string, number[]>();
+  for (const row of allSettings ?? []) {
+    const offsets = ((row.reminder_offsets_hours as number[] | null) ?? [24]).filter(
+      (n) => n > 0,
+    );
+    offsetsByOrg.set(row.organization_id as string, offsets);
+  }
+
+  const allOffsets = Array.from(offsetsByOrg.values()).flat();
+  if (allOffsets.length === 0) {
     return NextResponse.json({ ok: true, found: 0, sent: 0, skipped: 0, failures: [] });
   }
 
   const now = new Date();
-  const maxOffsetH = Math.max(...offsets);
+  const maxOffsetH = Math.max(...allOffsets);
   const windowEnd = new Date(now.getTime() + maxOffsetH * 60 * 60 * 1000);
 
   const { data, error } = await service
@@ -67,6 +74,7 @@ export async function GET(request: NextRequest) {
   const failures: Array<{ id: string; error: string }> = [];
 
   for (const booking of bookings) {
+    const offsets = offsetsByOrg.get(booking.organization_id) ?? [24];
     const sentOffsets = new Set(booking.reminder_offsets_sent ?? []);
     const hoursUntilStart = (new Date(booking.start_at).getTime() - now.getTime()) / 3_600_000;
 
@@ -84,10 +92,12 @@ export async function GET(request: NextRequest) {
 
     if (!booking.manage_token) {
       // Pre-M5 booking with no plain token — can't build manage links.
-      // Mark all configured offsets sent so we don't keep retrying.
+      // Mark this org's configured offsets sent so we don't keep retrying.
       await service
         .from("bookings")
-        .update({ reminder_offsets_sent: Array.from(new Set([...sentOffsets, ...offsets])) })
+        .update({
+          reminder_offsets_sent: Array.from(new Set([...sentOffsets, ...offsets])),
+        })
         .eq("id", booking.id);
       skipped++;
       continue;

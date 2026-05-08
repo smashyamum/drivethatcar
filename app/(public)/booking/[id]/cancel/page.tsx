@@ -32,7 +32,11 @@ export default async function CancelBookingPage({
 
   const [{ data: carData }, { data: settingsData }] = await Promise.all([
     service.from("cars").select("*").eq("id", booking.car_id).single(),
-    service.from("settings").select("*").eq("id", 1).single(),
+    service
+      .from("settings")
+      .select("*")
+      .eq("organization_id", booking.organization_id)
+      .single(),
   ]);
   const car = carData as Car;
   const settings = settingsData as Settings;

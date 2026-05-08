@@ -23,13 +23,20 @@ export default async function BookPage({
   const type = search.type === "test_drive" ? "test_drive" : "viewing";
 
   const service = createSupabaseServiceClient();
-  const [{ data: carData }, { data: settingsData }] = await Promise.all([
-    service.from("cars").select("*").eq("slug", slug).maybeSingle(),
-    service.from("settings").select("*").eq("id", 1).maybeSingle(),
-  ]);
-
-  if (!carData || !settingsData) notFound();
+  const { data: carData } = await service
+    .from("cars")
+    .select("*")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (!carData) notFound();
   const car = carData as Car;
+
+  const { data: settingsData } = await service
+    .from("settings")
+    .select("*")
+    .eq("organization_id", car.organization_id)
+    .maybeSingle();
+  if (!settingsData) notFound();
   const settings = settingsData as Settings;
 
   if (car.status !== "available") {
@@ -64,6 +71,7 @@ export default async function BookPage({
     service
       .from("blocked_slots")
       .select("start_at, end_at")
+      .eq("organization_id", car.organization_id)
       .gte("end_at", todayLocal.toISOString())
       .lte("start_at", windowEnd.toISOString()),
   ]);

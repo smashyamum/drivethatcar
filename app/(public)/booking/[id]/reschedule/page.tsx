@@ -51,7 +51,11 @@ export default async function ReschedulePage({
 
   const [{ data: carData }, { data: settingsData }] = await Promise.all([
     service.from("cars").select("*").eq("id", booking.car_id).single(),
-    service.from("settings").select("*").eq("id", 1).single(),
+    service
+      .from("settings")
+      .select("*")
+      .eq("organization_id", booking.organization_id)
+      .single(),
   ]);
   const car = carData as Car;
   const settings = settingsData as Settings;
@@ -75,6 +79,7 @@ export default async function ReschedulePage({
     service
       .from("blocked_slots")
       .select("start_at, end_at")
+      .eq("organization_id", booking.organization_id)
       .gte("end_at", todayLocal.toISOString())
       .lte("start_at", windowEnd.toISOString()),
   ]);

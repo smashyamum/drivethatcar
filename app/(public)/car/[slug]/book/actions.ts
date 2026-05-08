@@ -52,15 +52,21 @@ export async function createBooking(
   const { carId, type, startUtc, name, phone, email } = parsed.data;
   const service = createSupabaseServiceClient();
 
-  // Load car + settings, validate
-  const [{ data: carData }, { data: settingsData }] = await Promise.all([
-    service.from("cars").select("*").eq("id", carId).maybeSingle(),
-    service.from("settings").select("*").eq("id", 1).maybeSingle(),
-  ]);
-
+  // Load car first so we know which org's settings to fetch.
+  const { data: carData } = await service
+    .from("cars")
+    .select("*")
+    .eq("id", carId)
+    .maybeSingle();
   if (!carData) return { error: "Car not found." };
   const car = carData as Car;
   if (car.status !== "available") return { error: "This car is no longer available." };
+
+  const { data: settingsData } = await service
+    .from("settings")
+    .select("*")
+    .eq("organization_id", car.organization_id)
+    .maybeSingle();
   if (!settingsData) return { error: "Settings missing — contact the dealer." };
   const settings = settingsData as Settings;
 
@@ -91,6 +97,7 @@ export async function createBooking(
     service
       .from("blocked_slots")
       .select("start_at, end_at")
+      .eq("organization_id", car.organization_id)
       .gte("end_at", dayStart.toISOString())
       .lte("start_at", dayEnd.toISOString()),
   ]);
@@ -105,11 +112,13 @@ export async function createBooking(
     return { error: "That slot was just taken. Pick another." };
   }
 
-  // Upsert customer (dedupe on phone+email)
+  // Upsert customer (dedupe on org+phone+email — org-scoped now that we're
+  // multi-tenant; same phone/email could belong to different dealers).
   const normalisedEmail = email.toLowerCase();
   const { data: existingCustomer } = await service
     .from("customers")
     .select("id")
+    .eq("organization_id", car.organization_id)
     .eq("phone", phone)
     .eq("email", normalisedEmail)
     .maybeSingle();
@@ -121,7 +130,13 @@ export async function createBooking(
   } else {
     const { data: created, error: customerError } = await service
       .from("customers")
-      .insert({ name, phone, email: normalisedEmail })
+      .insert({
+        organization_id: car.organization_id,
+        name,
+        phone,
+        email: normalisedEmail,
+        lead_status: "new",
+      })
       .select("id")
       .single();
     if (customerError || !created) {
@@ -138,6 +153,7 @@ export async function createBooking(
   const { data: bookingRow, error: bookingError } = await service
     .from("bookings")
     .insert({
+      organization_id: car.organization_id,
       reference,
       car_id: carId,
       customer_id: customerId,
