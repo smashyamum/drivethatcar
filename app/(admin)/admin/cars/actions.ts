@@ -245,6 +245,72 @@ export async function updateCar(
   return {};
 }
 
+/**
+ * Bulk-delete cars. Mirrors deleteLeads — the FK is "on delete restrict"
+ * so we drop attached bookings first, but for any *future confirmed*
+ * booking we fire a cancellation email before the row goes away (so the
+ * customer hears about it from the dealer rather than just losing their
+ * confirmation link).
+ */
+export async function deleteCars(formData: FormData) {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const rawIds = formData.getAll("ids").filter((v): v is string => typeof v === "string");
+  const ids = Array.from(new Set(rawIds)).filter((s) => s.length > 0);
+
+  if (ids.length === 0 || ids.length > 200) {
+    redirect("/admin/cars?error=none_selected");
+  }
+
+  const nowIso = new Date().toISOString();
+  const { data: futureConfirmed } = await supabase
+    .from("bookings")
+    .select("id")
+    .in("car_id", ids)
+    .eq("status", "confirmed")
+    .gt("start_at", nowIso);
+  const futureIds = (futureConfirmed ?? []).map((b) => (b as { id: string }).id);
+
+  if (futureIds.length > 0) {
+    await Promise.all(
+      futureIds.map((bid) =>
+        sendCancellationEmail(bid).catch((err) => {
+          console.error(`Failed to send cancellation email for ${bid}`, err);
+        }),
+      ),
+    );
+  }
+
+  const { error: bookingsErr, count: bookingsDeleted } = await supabase
+    .from("bookings")
+    .delete({ count: "exact" })
+    .in("car_id", ids);
+  if (bookingsErr) {
+    redirect(`/admin/cars?error=${encodeURIComponent(bookingsErr.message)}`);
+  }
+
+  const { error, count } = await supabase
+    .from("cars")
+    .delete({ count: "exact" })
+    .in("id", ids);
+  if (error) {
+    redirect(`/admin/cars?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/cars");
+  revalidatePath("/admin/bookings");
+  revalidatePath("/cars");
+
+  const params = new URLSearchParams();
+  params.set("deleted", String(count ?? 0));
+  if ((bookingsDeleted ?? 0) > 0) params.set("bookings", String(bookingsDeleted));
+  redirect(`/admin/cars?${params.toString()}`);
+}
+
 export async function deleteCar(id: string) {
   const supabase = await createSupabaseServerClient();
   const {
