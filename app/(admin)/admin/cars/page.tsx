@@ -89,7 +89,12 @@ export default async function AdminCarsPage({
         </p>
       )}
 
-      <CarBulkList cars={carsWithCounts} />
+      <CarBulkList
+        cars={carsWithCounts}
+        publicBaseUrl={
+          process.env.NEXT_PUBLIC_SITE_URL ?? "https://drivethatcar.app"
+        }
+      />
     </div>
   );
 }

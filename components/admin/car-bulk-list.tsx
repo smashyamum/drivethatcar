@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CopyLinkButton } from "@/components/admin/copy-link-button";
 import type { Car, CarStatus } from "@/lib/supabase/types";
 import { formatMileage, formatPrice } from "@/lib/utils";
 import { deleteCars } from "@/app/(admin)/admin/cars/actions";
@@ -18,7 +19,14 @@ type Row = Car & {
   bookingCount: number;
 };
 
-export function CarBulkList({ cars }: { cars: Row[] }) {
+export function CarBulkList({
+  cars,
+  publicBaseUrl,
+}: {
+  cars: Row[];
+  /** e.g. "https://drivethatcar.app" — used to build absolute copy-to-clipboard URLs. */
+  publicBaseUrl: string;
+}) {
   const formRef = useRef<HTMLFormElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -144,13 +152,10 @@ export function CarBulkList({ cars }: { cars: Row[] }) {
                   <Badge tone={STATUS_TONE[car.status]}>{car.status}</Badge>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <Link
-                    href={`/car/${car.slug}`}
-                    target="_blank"
-                    className="text-xs text-fg-muted hover:text-fg"
-                  >
-                    /car/{car.slug} ↗
-                  </Link>
+                  <CopyLinkButton
+                    url={`${publicBaseUrl}/car/${car.slug}`}
+                    label={`/car/${car.slug}`}
+                  />
                 </td>
               </tr>
             ))}
