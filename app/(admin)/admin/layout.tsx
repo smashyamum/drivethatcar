@@ -1,15 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveMembershipOrNull, getActiveOrg } from "@/lib/tenant";
+import { getActiveMembershipOrNull, getActiveOrg, getCurrentUser } from "@/lib/tenant";
 import { signOut } from "../login/actions";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  // Cached helpers — one auth round-trip + one membership/org join, dedupes
+  // across every server component on the page.
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   // Authenticated but no org yet — they verified email but haven't finished

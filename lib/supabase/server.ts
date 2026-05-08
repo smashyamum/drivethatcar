@@ -1,7 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
-export async function createSupabaseServerClient() {
+/**
+ * Per-request cached server client. We were spinning up a fresh client (and
+ * therefore re-validating the session) on every helper call — three or four
+ * times per page render. Wrapping in React's `cache()` collapses them to
+ * one client per request, which means auth.getUser() inside that client
+ * caches its JWT verification across the whole render.
+ */
+export const createSupabaseServerClient = cache(async () => {
   const cookieStore = await cookies();
 
   return createServerClient(
@@ -24,4 +32,4 @@ export async function createSupabaseServerClient() {
       },
     },
   );
-}
+});
